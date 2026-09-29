@@ -907,7 +907,7 @@ function saveLocal(){
 
 function loadLocal(){
     try{
-        var d=localStorage.getItem('kaldis_eca_u')||localStorage.getItem('loni_u');
+        var d=localStorage.getItem('kaldis_eca_u');
         if(d){
             var u=JSON.parse(d);
             if(u.fn) S.firstName=u.fn;
@@ -1133,7 +1133,7 @@ function closeTerms(){document.getElementById('termsM').classList.remove('on')}
 
 function deepRefresh(){
     hap('heavy');
-    try{localStorage.removeItem('kaldis_eca_u');localStorage.removeItem('loni_u')}catch(e){}
+    try{localStorage.removeItem('kaldis_eca_u');}catch(e){}
     setTimeout(function(){
         if(window.location&&window.location.reload){
             window.location.reload(true);

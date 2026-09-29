@@ -64,7 +64,7 @@ function loadBotSettings() {
         }
         
         // Ensure mini app URL is correct
-        if (strpos($defaults['mini_app_url'], 'index.php') !== false || strpos($defaults['mini_app_url'], 'loniagro') !== false) {
+        if (strpos($defaults['mini_app_url'], 'index.php') !== false || strpos($defaults['mini_app_url'], 'localhost') !== false) {
             $defaults['mini_app_url'] = SITE_URL . '/miniapp/app.html';
         }
     } catch (Exception $e) {

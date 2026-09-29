@@ -247,12 +247,6 @@ if (!function_exists('generateOrderNumberKaldis')) {
     }
 }
 
-if (!function_exists('generateOrderNumberLoni')) {
-    function generateOrderNumberLoni() {
-        return generateOrderNumberKaldis();
-    }
-}
-
 function getSetting($key, $default = '') {
     static $settingsCache = [];
     if (empty($settingsCache)) {
