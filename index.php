@@ -1,6 +1,18 @@
 <?php
 require_once 'config.php';
 
+// Auto-redirect root domain access (e.g. ordering.kaldisbunnaet.com/) to /eca
+$uri = $_SERVER['REQUEST_URI'] ?? '';
+if (strpos($uri, '/eca') === false && (empty($uri) || $uri === '/' || $uri === '/index.php')) {
+    $chatId = $_GET['chat_id'] ?? '';
+    $redirectUrl = '/eca/';
+    if (!empty($chatId)) {
+        $redirectUrl .= '?chat_id=' . urlencode($chatId);
+    }
+    header("Location: " . $redirectUrl, true, 302);
+    exit;
+}
+
 // Check if we're in Telegram WebView
 $isTelegramWebView = isset($_SERVER['HTTP_USER_AGENT']) && strpos($_SERVER['HTTP_USER_AGENT'], 'TelegramBot') !== false;
 $chatId = $_GET['chat_id'] ?? '';

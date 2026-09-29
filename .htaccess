@@ -2,7 +2,11 @@ DirectoryIndex index.php index.html miniapp/app.html
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /ordering/
+    
+    # Auto-redirect root domain access (ordering.kaldisbunnaet.com/) to /eca/
+    RewriteCond %{REQUEST_URI} ^/$ [OR]
+    RewriteCond %{REQUEST_URI} ^/index\.php$
+    RewriteRule ^(.*)$ /eca/ [R=302,L]
 
     # Direct requests to existing files or directories
     RewriteCond %{REQUEST_FILENAME} -f [OR]
