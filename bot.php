@@ -149,16 +149,17 @@ function sendMessage($chatId, $text, $keyboard = null) {
         'parse_mode' => 'HTML',
         'disable_web_page_preview' => true
     ];
-    if ($keyboard) $params['reply_markup'] = json_encode($keyboard);
+    if ($keyboard) $params['reply_markup'] = $keyboard;
     
     $result = apiRequest("sendMessage", $params);
     
     if (isset($result['ok']) && !$result['ok']) {
-        error_log("Telegram API Error: " . json_encode($result));
+        @file_put_contents(__DIR__ . '/bot_webhook_log.txt', date('[Y-m-d H:i:s] ') . "Telegram API Error: " . json_encode($result) . "\n", FILE_APPEND);
     }
     
     return $result;
 }
+
 
 /**
  * Ensure tables exist and have all required columns.
