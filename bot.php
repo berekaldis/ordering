@@ -501,7 +501,7 @@ function startComplaint($chatId) {
         'inline_keyboard' => [
             [
                 ['text' => '🚚 Delivery Issue', 'callback_data' => 'complaint_delivery'],
-                ['text' => '🥛 Product Quality', 'callback_data' => 'complaint_product']
+                ['text' => '☕ Product Quality', 'callback_data' => 'complaint_product']
             ],
             [
                 ['text' => '💳 Payment Problem', 'callback_data' => 'complaint_payment'],
@@ -664,7 +664,7 @@ function notifyAdminFeedback($id, $data, $type) {
     
     if ($type === 'service') {
         $stars = getStarDisplay($data['service_rating'] ?? 0);
-        $message = "<b>🥛 New Service Feedback Received</b>\n\n" .
+        $message = "<b>☕ New Service Feedback Received</b>\n\n" .
                    "Feedback ID: <code>" . $id . "</code>\n" .
                    "Rating: " . $stars . "\n" .
                    "Feedback:\n" . ($data['service_feedback'] ?? 'No additional feedback') . "\n\n" .
@@ -784,7 +784,7 @@ function showSubscriptionOptions($chatId) {
         'inline_keyboard' => [
             [
                 ['text' => '🎁 Special Offers', 'callback_data' => 'subscribe_offers'],
-                ['text' => '🥛 New Products', 'callback_data' => 'subscribe_products']
+                ['text' => '☕ New Products', 'callback_data' => 'subscribe_products']
             ],
             [
                 ['text' => '❌ Unsubscribe Offers', 'callback_data' => 'unsubscribe_offers'],
@@ -938,7 +938,7 @@ function showMaintenanceBlocked($chatId, $feature) {
     $message = "<b>⚠️ Pre-Order is Closed</b>\n\n" .
                "The <b>" . htmlspecialchars($feature) . "</b> feature is currently unavailable.\n" .
                "We are not accepting orders at this time.\n\n" .
-               "Please check back later! 🥛";
+               "Please check back later! ☕";
     
     $keyboard = getMaintenanceKeyboard();
     sendMessage($chatId, $message, $keyboard);
