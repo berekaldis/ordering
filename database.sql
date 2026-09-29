@@ -16,14 +16,6 @@
 /*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
 
 --
--- Current Database: `kaldis_ordering`
---
-
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `kaldis_ordering` /*!40100 DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci */ /*!80016 DEFAULT ENCRYPTION='N' */;
-
-USE `kaldis_ordering`;
-
---
 -- Table structure for table `activity_logs`
 --
 
