@@ -215,10 +215,25 @@ function ensureBotTablesExist() {
                 UNIQUE KEY (chat_id, notification_type)
             )");
             
+            // Add telegram_users table
+            db()->exec("CREATE TABLE IF NOT EXISTS telegram_users (
+                id VARCHAR(32) PRIMARY KEY,
+                chat_id VARCHAR(50) NOT NULL UNIQUE,
+                username VARCHAR(100) DEFAULT NULL,
+                first_name VARCHAR(100) DEFAULT NULL,
+                last_name VARCHAR(100) DEFAULT NULL,
+                phone_number VARCHAR(50) DEFAULT NULL,
+                language VARCHAR(5) DEFAULT 'en',
+                state VARCHAR(50) DEFAULT 'idle',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                INDEX idx_chat_id (chat_id),
+                INDEX idx_username (username)
+            )");
+            
             @file_put_contents($flag, '1');
         } catch (Exception $e) {
             error_log("Table creation error: " . $e->getMessage());
-            return; // Don't proceed if creation fails
         }
     }
     
