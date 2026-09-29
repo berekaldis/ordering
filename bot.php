@@ -21,6 +21,17 @@ if (isset($_GET['webhook_info'])) {
     exit;
 }
 
+if (isset($_GET['view_log'])) {
+    header('Content-Type: text/plain');
+    $logFile = __DIR__ . '/bot_webhook_log.txt';
+    if (file_exists($logFile)) {
+        echo file_get_contents($logFile);
+    } else {
+        echo "No log file found yet.";
+    }
+    exit;
+}
+
 function loadBotSettings() {
     $defaults = [
         'bot_token' => '',
@@ -935,7 +946,12 @@ function showMaintenanceBlocked($chatId, $feature) {
 // ============================================================
 // CORE LOGIC
 // ============================================================
- $update = json_decode(file_get_contents("php://input"), true);
+$rawInput = file_get_contents("php://input");
+if (!empty($rawInput)) {
+    @file_put_contents(__DIR__ . '/bot_webhook_log.txt', date('[Y-m-d H:i:s] ') . $rawInput . "\n", FILE_APPEND);
+}
+
+$update = json_decode($rawInput, true);
 if (!$update) exit;
 
 // Ensure tables and columns are ready BEFORE processing
