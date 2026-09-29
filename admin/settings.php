@@ -164,6 +164,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             db()->commit();
             $success = "Settings saved successfully";
             logActivity($_SESSION['admin_id'], 'UPDATE_SETTINGS', 'SYSTEM', null, "Updated system settings ($submittedTab)");
+            
+            // Automatically sync webhook when saving Telegram tab
+            if ($submittedTab === 'telegram' && !empty($settingsToUpdate['bot_token'])) {
+                $suggestedUrl = rtrim(SITE_URL, '/') . '/bot.php';
+                $wRes = setWebhook($settingsToUpdate['bot_token'], $suggestedUrl);
+                if ($wRes['success']) {
+                    $success = "Settings saved & Telegram Webhook connected successfully!";
+                } else {
+                    $error = "Settings saved, but Webhook registration failed: " . ($wRes['message'] ?? 'Unknown error');
+                }
+            }
         } catch (Exception $e) {
             db()->rollBack();
             $error = "Failed to save settings: " . $e->getMessage();
