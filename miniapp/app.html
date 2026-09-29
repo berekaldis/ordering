@@ -1586,41 +1586,67 @@ function setTimeSlot(slot){
     rAddr();
 }
 
+function processGpsPosition(p) {
+    S.liveLat = parseFloat(p.coords.latitude.toFixed(6));
+    S.liveLng = parseFloat(p.coords.longitude.toFixed(6));
+    if(!S.plusCode) S.plusCode = S.liveLat + ', ' + S.liveLng;
+    saveLocal();
+    if(typeof hap === 'function') hap('ok');
+    var badge = document.getElementById('gpsBadge');
+    if(badge) {
+        badge.style.display = 'flex';
+        badge.innerHTML = '<span>📍 Live GPS Captured (' + S.liveLat.toFixed(4) + ', ' + S.liveLng.toFixed(4) + ')</span>';
+    }
+}
+
 function autoCaptureLocation(){
     if(navigator.geolocation && !S.liveLat){
         try {
             navigator.geolocation.getCurrentPosition(function(p){
-                S.liveLat=parseFloat(p.coords.latitude.toFixed(6));
-                S.liveLng=parseFloat(p.coords.longitude.toFixed(6));
-                if(!S.plusCode) S.plusCode=S.liveLat+', '+S.liveLng;
-                saveLocal();
-                hap('ok');
-                var badge=document.getElementById('gpsBadge');
-                if(badge){
-                    badge.style.display='flex';
-                    badge.innerHTML='<span>📍 Live GPS Captured ('+S.liveLat.toFixed(4)+', '+S.liveLng.toFixed(4)+')</span>';
-                }
-            },function(err){
-                console.warn('Auto GPS capture info:', err);
-            },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
-        }catch(e){}
+                processGpsPosition(p);
+            }, function(err){
+                try {
+                    navigator.geolocation.getCurrentPosition(function(p2){
+                        processGpsPosition(p2);
+                    }, function(err2){}, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
+                } catch(e){}
+            }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
+        } catch(e){}
     }
 }
 
 function reqLoc(){
-    if(!navigator.geolocation){toast('GPS not supported','error');return}
-    toast('Accessing precise GPS location...','success');
+    if(!navigator.geolocation){
+        toast('GPS not supported by your browser', 'error');
+        return;
+    }
+    toast('Accessing precise GPS location...', 'success');
+    
+    var tryFallback = function() {
+        navigator.geolocation.getCurrentPosition(function(p){
+            processGpsPosition(p);
+            toast('📍 Location captured! (' + S.liveLat + ', ' + S.liveLng + ')', 'success');
+            rAddr();
+        }, function(err){
+            if(err.code === 1) {
+                toast('Location permission denied. Please allow location in browser settings.', 'error');
+            } else {
+                toast('Unable to detect GPS. Please enter Plus Code or office building.', 'error');
+            }
+        }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
+    };
+
     navigator.geolocation.getCurrentPosition(function(p){
-        S.liveLat=parseFloat(p.coords.latitude.toFixed(6));
-        S.liveLng=parseFloat(p.coords.longitude.toFixed(6));
-        if(!S.plusCode) S.plusCode=S.liveLat+', '+S.liveLng;
-        saveLocal();
-        hap('ok');
-        toast('📍 Location captured! ('+S.liveLat+', '+S.liveLng+')','success');
+        processGpsPosition(p);
+        toast('📍 Location captured! (' + S.liveLat + ', ' + S.liveLng + ')', 'success');
         rAddr();
-    },function(err){
-        toast('GPS access denied or unavailable','error');
-    },{enableHighAccuracy:true,timeout:10000,maximumAge:0});
+    }, function(err){
+        if(err.code === 1) {
+            toast('Location permission denied. Please allow location in browser settings.', 'error');
+        } else {
+            tryFallback();
+        }
+    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 });
 }
 
 function setStar(criterion, val) {
