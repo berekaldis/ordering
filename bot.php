@@ -1142,22 +1142,28 @@ function processUpdate($update) {
         
         $userState = getUserState($chatId);
         
-        // Always allow feedback written input if in that state
-        if ($userState['state'] === 'awaiting_service_details') {
-            handleServiceFeedback($chatId, $text);
-            return;
-        }
-        
-        // Always allow complaint input if in that state
-        if ($userState['state'] === 'awaiting_complaint_details') {
-            handleComplaintText($chatId, $text);
-            return;
-        }
-        
-        // Always allow tracking input if in that state (even during maintenance for past orders)
-        if ($userState['state'] === 'tracking') {
-            trackOrderByNumber($chatId, $text);
-            return;
+        // If user sends a command starting with '/', clear any active dialogue state
+        if (strpos($text, '/') === 0) {
+            clearUserState($chatId);
+            $userState = ['state' => null, 'temp_data' => []];
+        } else {
+            // Always allow feedback written input if in that state
+            if ($userState['state'] === 'awaiting_service_details') {
+                handleServiceFeedback($chatId, $text);
+                return;
+            }
+            
+            // Always allow complaint input if in that state
+            if ($userState['state'] === 'awaiting_complaint_details') {
+                handleComplaintText($chatId, $text);
+                return;
+            }
+            
+            // Always allow tracking input if in that state
+            if ($userState['state'] === 'tracking') {
+                trackOrderByNumber($chatId, $text);
+                return;
+            }
         }
         
         // ===== MAINTENANCE: Handle commands selectively =====
