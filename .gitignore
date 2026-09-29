@@ -1,0 +1,15 @@
+# Logs & Temp Files
+/logs/*.log
+*.log
+
+# Environment / Credentials (if any)
+.env
+.env.local
+
+# OS Generated Files
+.DS_Store
+Thumbs.db
+
+# IDE Files
+.vscode/
+.idea/

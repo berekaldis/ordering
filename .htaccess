@@ -1,0 +1,21 @@
+DirectoryIndex index.php index.html miniapp/app.html
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /ordering/
+
+    # Direct requests to existing files or directories
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+</IfModule>
+
+<Files 403.shtml>
+    <IfModule mod_authz_core.c>
+        Require all granted
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        order allow,deny
+        allow from all
+    </IfModule>
+</Files>
