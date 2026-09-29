@@ -27,16 +27,16 @@ if (!isset($_SESSION['last_activity'])) {
 // ============================================================
 // 1. DATABASE CONFIGURATION
 // ============================================================
-define('DB_HOST', getenv('DB_HOST') ?: '127.0.0.1');
-define('DB_NAME', getenv('DB_NAME') ?: 'kaldis_ordering');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_NAME', getenv('DB_NAME') ?: 'kaldisbp_ordering');
+define('DB_USER', getenv('DB_USER') ?: 'kaldisbp_order');
+define('DB_PASS', getenv('DB_PASS') ?: '@IT2026!');
 define('DB_CHARSET', 'utf8mb4');
 
 // Production fallback credentials (for cPanel deployment)
 define('PROD_DB_NAME', 'kaldisbp_ordering');
-define('PROD_DB_USER', 'kaldisbp_IT');
-define('PROD_DB_PASS', '@Kaldis2026!');
+define('PROD_DB_USER', 'kaldisbp_order');
+define('PROD_DB_PASS', '@IT2026!');
 
 // ============================================================
 // 2. SITE CONFIGURATION
