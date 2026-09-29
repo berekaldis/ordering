@@ -236,10 +236,7 @@ if (!empty($botToken)) {
 }
 
 // Get site URL for webhook suggestion
-$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
-$host = $_SERVER['HTTP_HOST'];
-$scriptPath = dirname($_SERVER['SCRIPT_NAME']);
-$suggestedWebhookUrl = $protocol . $host . rtrim($scriptPath, '/admin') . '/bot.php';
+$suggestedWebhookUrl = rtrim(SITE_URL, '/') . '/bot.php';
 
 // Get bot info
 $botInfo = null;
