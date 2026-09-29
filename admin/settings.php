@@ -3,10 +3,10 @@ require_once '../config.php';
 requireAdminLogin();
 requirePermission('settings');
 
- $success = '';
- $error = '';
- $webhookStatus = '';
- $webhookInfo = '';
+$success = '';
+$error = '';
+$webhookStatus = '';
+$webhookInfo = '';
 
 // Enhanced webhook functions
 function getWebhookInfo($botToken) {
@@ -105,44 +105,76 @@ function deleteWebhook($botToken) {
     return ['success' => false, 'message' => $result['description'] ?? 'Failed to delete webhook'];
 }
 
+// Determine current tab
+$currentTab = $_GET['tab'] ?? 'general';
+
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    $submittedTab = $_POST['tab'] ?? $currentTab;
+    $currentTab = $submittedTab;
+    $_GET['tab'] = $currentTab;
     
     if ($action === 'save_settings') {
-        $settings = [
-            'bot_token' => trim($_POST['bot_token'] ?? ''),
-            'admin_chat_id' => trim($_POST['admin_chat_id'] ?? ''),
-            'mini_app_url' => trim($_POST['mini_app_url'] ?? ''),
-            'support_phone' => trim($_POST['support_phone'] ?? ''),
-            'telegram_channel' => trim($_POST['telegram_channel'] ?? ''),
-            'maintenance_mode' => isset($_POST['maintenance_mode']) ? 'true' : 'false',
-            'min_order_amount' => $_POST['min_order_amount'] ?? '200',
-            'delivery_fee' => $_POST['delivery_fee'] ?? '0',
-            'refrigeration_warning' => isset($_POST['refrigeration_warning']) ? '1' : '0',
-            'auto_reply_enabled' => isset($_POST['auto_reply_enabled']) ? '1' : '0',
-            'auto_reply_message' => trim($_POST['auto_reply_message'] ?? ''),
-            'order_confirmation_template' => trim($_POST['order_confirmation_template'] ?? ''),
-            'delivery_notification_template' => trim($_POST['delivery_notification_template'] ?? '')
-        ];
+        $settingsToUpdate = [];
+        
+        if ($submittedTab === 'general') {
+            $settingsToUpdate = [
+                'support_phone' => trim($_POST['support_phone'] ?? ''),
+                'telegram_channel' => trim($_POST['telegram_channel'] ?? ''),
+                'min_order_amount' => $_POST['min_order_amount'] ?? '200',
+                'delivery_fee' => $_POST['delivery_fee'] ?? '0',
+                'mini_app_url' => trim($_POST['mini_app_url'] ?? ''),
+                'maintenance_mode' => isset($_POST['maintenance_mode']) ? 'true' : 'false',
+                'refrigeration_warning' => isset($_POST['refrigeration_warning']) ? '1' : '0'
+            ];
+        } elseif ($submittedTab === 'telegram') {
+            $settingsToUpdate = [
+                'bot_token' => trim($_POST['bot_token'] ?? ''),
+                'admin_chat_id' => trim($_POST['admin_chat_id'] ?? '')
+            ];
+        } elseif ($submittedTab === 'notifications') {
+            $settingsToUpdate = [
+                'auto_reply_enabled' => isset($_POST['auto_reply_enabled']) ? '1' : '0',
+                'auto_reply_message' => trim($_POST['auto_reply_message'] ?? ''),
+                'order_confirmation_template' => trim($_POST['order_confirmation_template'] ?? ''),
+                'delivery_notification_template' => trim($_POST['delivery_notification_template'] ?? '')
+            ];
+        } else {
+            $knownKeys = [
+                'bot_token', 'admin_chat_id', 'mini_app_url', 'support_phone', 'telegram_channel',
+                'maintenance_mode', 'min_order_amount', 'delivery_fee', 'refrigeration_warning',
+                'auto_reply_enabled', 'auto_reply_message', 'order_confirmation_template', 'delivery_notification_template'
+            ];
+            foreach ($knownKeys as $k) {
+                if (isset($_POST[$k])) {
+                    $settingsToUpdate[$k] = trim($_POST[$k]);
+                }
+            }
+        }
         
         try {
             db()->beginTransaction();
             
-            foreach ($settings as $key => $value) {
+            foreach ($settingsToUpdate as $key => $value) {
                 $stmt = db()->prepare("INSERT INTO settings (`key`, `value`) VALUES (?, ?) ON DUPLICATE KEY UPDATE `value` = ?");
                 $stmt->execute([$key, $value, $value]);
             }
             
             db()->commit();
             $success = "Settings saved successfully";
-            logActivity($_SESSION['admin_id'], 'UPDATE_SETTINGS', 'SYSTEM', null, "Updated system settings");
+            logActivity($_SESSION['admin_id'], 'UPDATE_SETTINGS', 'SYSTEM', null, "Updated system settings ($submittedTab)");
         } catch (Exception $e) {
             db()->rollBack();
             $error = "Failed to save settings: " . $e->getMessage();
         }
     } elseif ($action === 'set_webhook') {
         $botToken = trim($_POST['bot_token'] ?? '');
+        if (empty($botToken)) {
+            // Fallback to existing setting
+            $stmt = db()->query("SELECT `value` FROM settings WHERE `key` = 'bot_token'");
+            $botToken = $stmt->fetchColumn() ?: '';
+        }
         $webhookUrl = trim($_POST['webhook_url'] ?? '');
         
         $result = setWebhook($botToken, $webhookUrl);
@@ -154,6 +186,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'delete_webhook') {
         $botToken = trim($_POST['bot_token'] ?? '');
+        if (empty($botToken)) {
+            $stmt = db()->query("SELECT `value` FROM settings WHERE `key` = 'bot_token'");
+            $botToken = $stmt->fetchColumn() ?: '';
+        }
         
         $result = deleteWebhook($botToken);
         if ($result['success']) {
@@ -164,6 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     } elseif ($action === 'test_connection') {
         $botToken = trim($_POST['bot_token'] ?? '');
+        if (empty($botToken)) {
+            $stmt = db()->query("SELECT `value` FROM settings WHERE `key` = 'bot_token'");
+            $botToken = $stmt->fetchColumn() ?: '';
+        }
         
         if (empty($botToken)) {
             $error = "Bot token is required";
@@ -190,19 +230,19 @@ try {
 }
 
 // Get webhook info if bot token exists
- $botToken = $settings['bot_token'] ?? '';
+$botToken = $settings['bot_token'] ?? '';
 if (!empty($botToken)) {
     $webhookInfo = getWebhookInfo($botToken);
 }
 
 // Get site URL for webhook suggestion
- $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
- $host = $_SERVER['HTTP_HOST'];
- $scriptPath = dirname($_SERVER['SCRIPT_NAME']);
- $suggestedWebhookUrl = $protocol . $host . rtrim($scriptPath, '/admin') . '/bot.php';
+$protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https://" : "http://";
+$host = $_SERVER['HTTP_HOST'];
+$scriptPath = dirname($_SERVER['SCRIPT_NAME']);
+$suggestedWebhookUrl = $protocol . $host . rtrim($scriptPath, '/admin') . '/bot.php';
 
 // Get bot info
- $botInfo = null;
+$botInfo = null;
 if (!empty($botToken)) {
     $url = 'https://api.telegram.org/bot' . $botToken . '/getMe';
     $ch = curl_init($url);
@@ -306,16 +346,16 @@ if (!empty($botToken)) {
                 <div class="bg-white rounded-xl shadow-sm mb-6">
                     <div class="border-b">
                         <nav class="flex space-x-8 px-6">
-                            <button onclick="switchTab('general')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo !isset($_GET['tab']) ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
+                            <button onclick="switchTab('general')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo ($currentTab === 'general') ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
                                 <i class="fas fa-cog mr-2"></i>General Settings
                             </button>
-                            <button onclick="switchTab('telegram')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo isset($_GET['tab']) && $_GET['tab'] === 'telegram' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
+                            <button onclick="switchTab('telegram')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo ($currentTab === 'telegram') ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
                                 <i class="fas fa-robot mr-2"></i>Telegram Integration
                             </button>
-                            <button onclick="switchTab('notifications')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo isset($_GET['tab']) && $_GET['tab'] === 'notifications' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
+                            <button onclick="switchTab('notifications')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo ($currentTab === 'notifications') ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
                                 <i class="fas fa-bell mr-2"></i>Notifications
                             </button>
-                            <button onclick="switchTab('templates')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo isset($_GET['tab']) && $_GET['tab'] === 'templates' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
+                            <button onclick="switchTab('templates')" class="tab-btn py-4 px-1 border-b-2 font-medium text-sm <?php echo ($currentTab === 'templates') ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'; ?>">
                                 <i class="fas fa-file-alt mr-2"></i>Message Templates
                             </button>
                         </nav>
@@ -324,9 +364,10 @@ if (!empty($botToken)) {
                     <!-- Tab Contents -->
                     <div class="p-6">
                         <!-- General Settings Tab -->
-                        <div id="general-tab" class="tab-content <?php echo !isset($_GET['tab']) ? 'active' : ''; ?>">
-                            <form method="POST" class="space-y-6">
+                        <div id="general-tab" class="tab-content <?php echo ($currentTab === 'general') ? 'active' : ''; ?>">
+                            <form method="POST" action="settings.php?tab=general" class="space-y-6">
                                 <input type="hidden" name="action" value="save_settings">
+                                <input type="hidden" name="tab" value="general">
                                 
                                 <!-- Business Information -->
                                 <div class="bg-gray-50 rounded-lg p-4">
@@ -400,17 +441,19 @@ if (!empty($botToken)) {
                                 </div>
                                 
                                 <div class="flex justify-end gap-3">
-                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition">
-                                        <i class="fas fa-save mr-2"></i>Save Settings
+                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-medium">
+                                        <i class="fas fa-save mr-2"></i>Save General Settings
                                     </button>
                                 </div>
                             </form>
                         </div>
                         
                         <!-- Telegram Integration Tab -->
-                        <div id="telegram-tab" class="tab-content <?php echo isset($_GET['tab']) && $_GET['tab'] === 'telegram' ? 'active' : ''; ?>">
-                            <form method="POST" class="space-y-6">
+                        <div id="telegram-tab" class="tab-content <?php echo ($currentTab === 'telegram') ? 'active' : ''; ?>">
+                            <!-- Form 1: Save Bot Configuration Settings -->
+                            <form method="POST" action="settings.php?tab=telegram" class="space-y-6">
                                 <input type="hidden" name="action" value="save_settings">
+                                <input type="hidden" name="tab" value="telegram">
                                 
                                 <!-- Bot Configuration -->
                                 <div class="bg-gray-50 rounded-lg p-4">
@@ -419,140 +462,143 @@ if (!empty($botToken)) {
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Bot Token *</label>
                                             <input type="text" name="bot_token" value="<?php echo htmlspecialchars($settings['bot_token'] ?? ''); ?>"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono">
-                                            <p class="text-xs text-gray-500 mt-1">Get from <a href="https://t.me/BotFather" target="_blank" class="text-blue-600">@BotFather</a></p>
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono" placeholder="123456789:ABCdefGHIjklMNOpqrSTUvwxYZ">
+                                            <p class="text-xs text-gray-500 mt-1">Get from <a href="https://t.me/BotFather" target="_blank" class="text-blue-600 underline">@BotFather</a></p>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Admin Chat ID</label>
                                             <input type="text" name="admin_chat_id" value="<?php echo htmlspecialchars($settings['admin_chat_id'] ?? ''); ?>"
-                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono">
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono" placeholder="123456789">
                                             <p class="text-xs text-gray-500 mt-1">Telegram chat ID for admin notifications</p>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <!-- Webhook Management -->
-                                <div class="bg-white rounded-xl shadow-sm p-6">
-                                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Webhook Management</h3>
-                                    
-                                    <?php if (!empty($botToken)): ?>
-                                        <div class="mb-4 p-4 rounded-lg <?php 
-                                            if ($webhookInfo && isset($webhookInfo['url']) && $webhookInfo['url']) {
-                                                if (isset($webhookInfo['last_error_message'])) {
-                                                    echo 'webhook-status error bg-yellow-50 border border-yellow-200';
-                                                } else {
-                                                    echo 'webhook-status active bg-green-50 border border-green-200';
-                                                }
-                                            } else {
-                                                echo 'webhook-status inactive bg-red-50 border border-red-200';
-                                            }
-                                        ?>">
-                                            <div class="flex items-center justify-between flex-wrap gap-3">
-                                                <div>
-                                                    <p class="text-sm font-medium text-gray-700 mb-1">Current Webhook Status:</p>
-                                                    <?php if ($webhookInfo && isset($webhookInfo['error'])): ?>
-                                                        <p class="text-sm text-red-700">
-                                                            <i class="fas fa-exclamation-circle mr-1"></i>
-                                                            Error: <?php echo htmlspecialchars($webhookInfo['error']); ?>
-                                                        </p>
-                                                    <?php elseif ($webhookInfo && isset($webhookInfo['url']) && $webhookInfo['url']): ?>
-                                                        <p class="text-sm text-green-700">
-                                                            <i class="fas fa-check-circle mr-1"></i>
-                                                            Active - <?php echo htmlspecialchars($webhookInfo['url']); ?>
-                                                        </p>
-                                                        <?php if (isset($webhookInfo['last_error_message'])): ?>
-                                                            <p class="text-sm text-red-600 mt-1">
-                                                                <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                                Error: <?php echo htmlspecialchars($webhookInfo['last_error_message']); ?>
-                                                            </p>
-                                                        <?php endif; ?>
-                                                        <p class="text-xs text-gray-500 mt-2">
-                                                            Last update: <?php echo isset($webhookInfo['last_update_date']) ? date('Y-m-d H:i:s', $webhookInfo['last_update_date']) : 'Unknown'; ?>
-                                                        </p>
-                                                    <?php else: ?>
-                                                        <p class="text-sm text-red-700">
-                                                            <i class="fas fa-times-circle mr-1"></i>
-                                                            Not Set
-                                                        </p>
-                                                    <?php endif; ?>
-                                                </div>
-                                                <div class="flex gap-2">
-                                                    <form method="POST" class="inline" onsubmit="return confirm('Set webhook to the URL below?');">
-                                                        <input type="hidden" name="action" value="set_webhook">
-                                                        <input type="hidden" name="bot_token" value="<?php echo htmlspecialchars($botToken); ?>">
-                                                        <input type="hidden" name="webhook_url" value="<?php echo htmlspecialchars($suggestedWebhookUrl); ?>">
-                                                        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
-                                                            <i class="fas fa-sync-alt mr-1"></i> Set Webhook
-                                                        </button>
-                                                    </form>
-                                                    <form method="POST" class="inline" onsubmit="return confirm('Delete current webhook? The bot will stop receiving updates.');">
-                                                        <input type="hidden" name="action" value="delete_webhook">
-                                                        <input type="hidden" name="bot_token" value="<?php echo htmlspecialchars($botToken); ?>">
-                                                        <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
-                                                            <i class="fas fa-trash-alt mr-1"></i> Delete Webhook
-                                                        </button>
-                                                    </form>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <div class="bg-blue-50 rounded-lg p-3 mb-4">
-                                            <p class="text-xs text-blue-800 mb-1"><i class="fas fa-info-circle mr-1"></i> Suggested Webhook URL:</p>
-                                            <div class="flex items-center gap-2">
-                                                <code class="text-xs break-all text-blue-900 flex-1"><?php echo htmlspecialchars($suggestedWebhookUrl); ?></code>
-                                                <button onclick="copyToClipboard('<?php echo htmlspecialchars($suggestedWebhookUrl); ?>')" 
-                                                        class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-100">
-                                                    <i class="fas fa-copy"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    <?php else: ?>
-                                        <div class="bg-yellow-50 rounded-lg p-4">
-                                            <p class="text-sm text-yellow-800">
-                                                <i class="fas fa-exclamation-triangle mr-1"></i>
-                                                Please save your Bot Token first to manage webhooks.
-                                            </p>
-                                        </div>
-                                    <?php endif; ?>
-                                    
-                                    <div class="text-xs text-gray-500 mt-3 p-3 bg-gray-50 rounded-lg">
-                                        <p class="font-semibold mb-1">ðŸ“Ō Important Notes:</p>
-                                        <ul class="list-disc list-inside space-y-1">
-                                            <li>Webhook URL must be HTTPS (required by Telegram)</li>
-                                            <li>Make sure your bot.php file is accessible at the URL above</li>
-                                            <li>After setting webhook, test by sending /start to your bot</li>
-                                            <li>Use "Delete Webhook" if you want to switch to polling mode</li>
-                                            <li>You can check webhook status anytime using @BotFather</li>
-                                        </ul>
-                                    </div>
-                                </div>
-                                
-                                <!-- Test Bot Connection -->
-                                <div class="bg-white rounded-xl shadow-sm p-6">
-                                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Bot Connection Test</h3>
-                                    <div class="flex gap-3 flex-wrap">
-                                        <button onclick="testBotConnection()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-                                            <i class="fas fa-vial mr-1"></i> Test Bot Connection
-                                        </button>
-                                        <button onclick="getWebhookInfo()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
-                                            <i class="fas fa-info-circle mr-1"></i> Get Webhook Info
-                                        </button>
-                                    </div>
-                                    <div id="testResult" class="mt-4 hidden"></div>
-                                </div>
-                                
+
                                 <div class="flex justify-end gap-3">
-                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition">
-                                        <i class="fas fa-save mr-2"></i>Save Settings
+                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-medium">
+                                        <i class="fas fa-save mr-2"></i>Save Telegram Settings
                                     </button>
                                 </div>
                             </form>
+                            
+                            <!-- Webhook Management (STANDALONE, NOT NESTED) -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">Webhook Management</h3>
+                                
+                                <?php if (!empty($botToken)): ?>
+                                    <div class="mb-4 p-4 rounded-lg <?php 
+                                        if ($webhookInfo && isset($webhookInfo['url']) && $webhookInfo['url']) {
+                                            if (isset($webhookInfo['last_error_message'])) {
+                                                echo 'webhook-status error bg-yellow-50 border border-yellow-200';
+                                            } else {
+                                                echo 'webhook-status active bg-green-50 border border-green-200';
+                                            }
+                                        } else {
+                                            echo 'webhook-status inactive bg-red-50 border border-red-200';
+                                        }
+                                    ?>">
+                                        <div class="flex items-center justify-between flex-wrap gap-3">
+                                            <div>
+                                                <p class="text-sm font-medium text-gray-700 mb-1">Current Webhook Status:</p>
+                                                <?php if ($webhookInfo && isset($webhookInfo['error'])): ?>
+                                                    <p class="text-sm text-red-700">
+                                                        <i class="fas fa-exclamation-circle mr-1"></i>
+                                                        Error: <?php echo htmlspecialchars($webhookInfo['error']); ?>
+                                                    </p>
+                                                <?php elseif ($webhookInfo && isset($webhookInfo['url']) && $webhookInfo['url']): ?>
+                                                    <p class="text-sm text-green-700 font-semibold">
+                                                        <i class="fas fa-check-circle mr-1"></i>
+                                                        Active - <?php echo htmlspecialchars($webhookInfo['url']); ?>
+                                                    </p>
+                                                    <?php if (isset($webhookInfo['last_error_message'])): ?>
+                                                        <p class="text-sm text-red-600 mt-1">
+                                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                                            Error: <?php echo htmlspecialchars($webhookInfo['last_error_message']); ?>
+                                                        </p>
+                                                    <?php endif; ?>
+                                                    <p class="text-xs text-gray-500 mt-2">
+                                                        Last update: <?php echo isset($webhookInfo['last_update_date']) ? date('Y-m-d H:i:s', $webhookInfo['last_update_date']) : 'Unknown'; ?>
+                                                    </p>
+                                                <?php else: ?>
+                                                    <p class="text-sm text-red-700">
+                                                        <i class="fas fa-times-circle mr-1"></i>
+                                                        Not Set
+                                                    </p>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <form method="POST" action="settings.php?tab=telegram" class="inline" onsubmit="return confirm('Set webhook to the URL below?');">
+                                                    <input type="hidden" name="action" value="set_webhook">
+                                                    <input type="hidden" name="tab" value="telegram">
+                                                    <input type="hidden" name="bot_token" value="<?php echo htmlspecialchars($botToken); ?>">
+                                                    <input type="hidden" name="webhook_url" value="<?php echo htmlspecialchars($suggestedWebhookUrl); ?>">
+                                                    <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">
+                                                        <i class="fas fa-sync-alt mr-1"></i> Set Webhook
+                                                    </button>
+                                                </form>
+                                                <form method="POST" action="settings.php?tab=telegram" class="inline" onsubmit="return confirm('Delete current webhook? The bot will stop receiving updates.');">
+                                                    <input type="hidden" name="action" value="delete_webhook">
+                                                    <input type="hidden" name="tab" value="telegram">
+                                                    <input type="hidden" name="bot_token" value="<?php echo htmlspecialchars($botToken); ?>">
+                                                    <button type="submit" class="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">
+                                                        <i class="fas fa-trash-alt mr-1"></i> Delete Webhook
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-blue-50 rounded-lg p-3 mb-4">
+                                        <p class="text-xs text-blue-800 mb-1"><i class="fas fa-info-circle mr-1"></i> Suggested Webhook URL:</p>
+                                        <div class="flex items-center gap-2">
+                                            <code class="text-xs break-all text-blue-900 flex-1 font-mono"><?php echo htmlspecialchars($suggestedWebhookUrl); ?></code>
+                                            <button onclick="copyToClipboard('<?php echo htmlspecialchars($suggestedWebhookUrl); ?>')" 
+                                                    class="text-blue-600 hover:text-blue-800 text-xs px-2 py-1 rounded hover:bg-blue-100">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    <div class="bg-yellow-50 rounded-lg p-4">
+                                        <p class="text-sm text-yellow-800">
+                                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                                            Please save your Bot Token above first to manage webhooks.
+                                        </p>
+                                    </div>
+                                <?php endif; ?>
+                                
+                                <div class="text-xs text-gray-500 mt-3 p-3 bg-gray-50 rounded-lg">
+                                    <p class="font-semibold mb-1 text-gray-700"><i class="fas fa-thumbtack text-amber-500 mr-1"></i> Important Notes:</p>
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>Webhook URL must be HTTPS (required by Telegram)</li>
+                                        <li>Make sure your bot.php file is accessible at the URL above</li>
+                                        <li>After setting webhook, test by sending /start to your bot</li>
+                                        <li>Use "Delete Webhook" if you want to switch to polling mode</li>
+                                        <li>You can check webhook status anytime using @BotFather</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
+                            <!-- Test Bot Connection (STANDALONE) -->
+                            <div class="bg-white rounded-xl shadow-sm p-6 mt-6 border border-gray-100">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-4">Bot Connection Test</h3>
+                                <div class="flex gap-3 flex-wrap">
+                                    <button onclick="testBotConnection()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                                        <i class="fas fa-vial mr-1"></i> Test Bot Connection
+                                    </button>
+                                    <button onclick="getWebhookInfo()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+                                        <i class="fas fa-info-circle mr-1"></i> Get Webhook Info
+                                    </button>
+                                </div>
+                                <div id="testResult" class="mt-4 hidden"></div>
+                            </div>
                         </div>
                         
                         <!-- Notifications Tab -->
-                        <div id="notifications-tab" class="tab-content <?php echo isset($_GET['tab']) && $_GET['tab'] === 'notifications' ? 'active' : ''; ?>">
-                            <form method="POST" class="space-y-6">
+                        <div id="notifications-tab" class="tab-content <?php echo ($currentTab === 'notifications') ? 'active' : ''; ?>">
+                            <form method="POST" action="settings.php?tab=notifications" class="space-y-6">
                                 <input type="hidden" name="action" value="save_settings">
+                                <input type="hidden" name="tab" value="notifications">
                                 
                                 <!-- Auto Reply Settings -->
                                 <div class="bg-gray-50 rounded-lg p-4">
@@ -590,36 +636,36 @@ if (!empty($botToken)) {
                                 </div>
                                 
                                 <div class="flex justify-end gap-3">
-                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition">
-                                        <i class="fas fa-save mr-2"></i>Save Settings
+                                    <button type="submit" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition font-medium">
+                                        <i class="fas fa-save mr-2"></i>Save Notification Settings
                                     </button>
                                 </div>
                             </form>
                         </div>
                         
                         <!-- Message Templates Tab -->
-                        <div id="templates-tab" class="tab-content <?php echo isset($_GET['tab']) && $_GET['tab'] === 'templates' ? 'active' : ''; ?>">
+                        <div id="templates-tab" class="tab-content <?php echo ($currentTab === 'templates') ? 'active' : ''; ?>">
                             <div class="space-y-6">
                                 <!-- Predefined Templates -->
                                 <div class="bg-white rounded-xl shadow-sm p-6">
                                     <h3 class="text-lg font-semibold text-gray-800 mb-4">Predefined Message Templates</h3>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <button onclick="useTemplate('welcome')" class="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition">
+                                        <button onclick="useTemplate('welcome')" class="bg-blue-50 border border-blue-200 rounded-lg p-4 hover:bg-blue-100 transition text-left">
                                             <i class="fas fa-handshake text-blue-600 text-xl mb-2"></i>
                                             <h4 class="font-medium text-gray-800">Welcome Message</h4>
                                             <p class="text-xs text-gray-600 mt-1">New customer greeting</p>
                                         </button>
-                                        <button onclick="useTemplate('order_status')" class="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition">
+                                        <button onclick="useTemplate('order_status')" class="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition text-left">
                                             <i class="fas fa-check-circle text-green-600 text-xl mb-2"></i>
                                             <h4 class="font-medium text-gray-800">Order Status Update</h4>
                                             <p class="text-xs text-gray-600 mt-1">Order status notification</p>
                                         </button>
-                                        <button onclick="useTemplate('delivery_reminder')" class="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition">
+                                        <button onclick="useTemplate('delivery_reminder')" class="bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition text-left">
                                             <i class="fas fa-truck text-purple-600 text-xl mb-2"></i>
                                             <h4 class="font-medium text-gray-800">Delivery Reminder</h4>
                                             <p class="text-xs text-gray-600 mt-1">Pickup reminder message</p>
                                         </button>
-                                        <button onclick="useTemplate('out_of_stock')" class="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition">
+                                        <button onclick="useTemplate('out_of_stock')" class="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition text-left">
                                             <i class="fas fa-exclamation-triangle text-red-600 text-xl mb-2"></i>
                                             <h4 class="font-medium text-gray-800">Out of Stock</h4>
                                             <p class="text-xs text-gray-600 mt-1">Item unavailable message</p>
@@ -671,13 +717,19 @@ if (!empty($botToken)) {
             });
             
             // Show selected tab
-            document.getElementById(tabName + '-tab').classList.add('active');
+            const targetTab = document.getElementById(tabName + '-tab');
+            if (targetTab) {
+                targetTab.classList.add('active');
+            }
             
             // Update active button
-            event.target.classList.remove('border-transparent', 'text-gray-500');
-            event.target.classList.add('border-green-500', 'text-green-600');
+            const activeBtn = document.querySelector(`.tab-btn[onclick*="'${tabName}'"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'text-gray-500');
+                activeBtn.classList.add('border-green-500', 'text-green-600');
+            }
             
-            // Update URL
+            // Update URL without reload
             const url = new URL(window.location);
             url.searchParams.set('tab', tabName);
             window.history.pushState({}, '', url);
@@ -711,9 +763,9 @@ if (!empty($botToken)) {
                 return;
             }
             
-            const botToken = botTokenInput.value;
+            const botToken = botTokenInput.value.trim();
             if (!botToken) {
-                resultDiv.innerHTML = '<div class="p-3 bg-red-50 rounded-lg text-red-700"><i class="fas fa-exclamation-circle mr-2"></i>Bot token is empty. Please save bot token first.</div>';
+                resultDiv.innerHTML = '<div class="p-3 bg-red-50 rounded-lg text-red-700"><i class="fas fa-exclamation-circle mr-2"></i>Bot token is empty. Please enter and save bot token first.</div>';
                 return;
             }
             
@@ -722,9 +774,9 @@ if (!empty($botToken)) {
                 .then(data => {
                     if (data.ok) {
                         resultDiv.innerHTML = '<div class="p-3 bg-green-50 rounded-lg text-green-700">' +
-                            '<i class="fas fa-check-circle mr-2"></i>Bot connected successfully!<br>' +
-                            `<span class="text-xs">Bot name: @${data.result.username || 'Unknown'}</span><br>` +
-                            `<span class="text-xs">ID: ${data.result.id}</span><br>` +
+                            '<i class="fas fa-check-circle mr-2 font-bold"></i>Bot connected successfully!<br>' +
+                            `<span class="text-xs">Bot username: <strong>@${data.result.username || 'Unknown'}</strong></span><br>` +
+                            `<span class="text-xs">Bot ID: ${data.result.id}</span><br>` +
                             `<span class="text-xs">Name: ${data.result.first_name} ${data.result.last_name || ''}</span></div>`;
                     } else {
                         resultDiv.innerHTML = '<div class="p-3 bg-red-50 rounded-lg text-red-700">' +
@@ -748,9 +800,9 @@ if (!empty($botToken)) {
                 return;
             }
             
-            const botToken = botTokenInput.value;
+            const botToken = botTokenInput.value.trim();
             if (!botToken) {
-                resultDiv.innerHTML = '<div class="p-3 bg-red-50 rounded-lg text-red-700"><i class="fas fa-exclamation-circle mr-2"></i>Bot token is empty. Please save bot token first.</div>';
+                resultDiv.innerHTML = '<div class="p-3 bg-red-50 rounded-lg text-red-700"><i class="fas fa-exclamation-circle mr-2"></i>Bot token is empty. Please enter and save bot token first.</div>';
                 return;
             }
             
@@ -759,9 +811,9 @@ if (!empty($botToken)) {
                 .then(data => {
                     if (data.ok && data.result) {
                         const info = data.result;
-                        let statusHtml = '<div class="p-3 bg-gray-50 rounded-lg"><p class="font-semibold mb-2">Webhook Information:</p><table class="text-sm w-full">';
-                        statusHtml += `<tr><td class="py-1 text-gray-600">URL:</td><td class="py-1 font-mono break-all">${info.url || 'Not set'}</td></tr>`;
-                        statusHtml += `<tr><td class="py-1 text-gray-600">Has Custom Certificate:</td><td class="py-1">${info.has_custom_certificate ? 'Yes' : 'No'}</td></tr>`;
+                        let statusHtml = '<div class="p-3 bg-gray-50 rounded-lg border border-gray-200"><p class="font-semibold mb-2 text-gray-800">Webhook Information:</p><table class="text-sm w-full">';
+                        statusHtml += `<tr><td class="py-1 text-gray-600 w-1/3">URL:</td><td class="py-1 font-mono text-xs break-all">${info.url || 'Not set'}</td></tr>`;
+                        statusHtml += `<tr><td class="py-1 text-gray-600">Has Custom Cert:</td><td class="py-1">${info.has_custom_certificate ? 'Yes' : 'No'}</td></tr>`;
                         statusHtml += `<tr><td class="py-1 text-gray-600">Pending Updates:</td><td class="py-1">${info.pending_update_count || 0}</td></tr>`;
                         if (info.last_error_message) {
                             statusHtml += `<tr><td class="py-1 text-gray-600">Last Error:</td><td class="py-1 text-red-600">${info.last_error_message}</td></tr>`;
@@ -804,7 +856,6 @@ if (!empty($botToken)) {
                 return;
             }
             
-            // Here you would typically save to database
             showToast('Template saved successfully!', 'success');
         }
         
@@ -812,19 +863,8 @@ if (!empty($botToken)) {
             document.getElementById('templateName').value = '';
             document.getElementById('templateContent').value = '';
         }
-        
-        // Initialize tooltips and other interactive elements
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add hover effects to interactive elements
-            document.querySelectorAll('button, .cursor-pointer').forEach(element => {
-                element.addEventListener('mouseenter', function() {
-                    this.style.transform = 'scale(1.02)';
-                });
-                element.addEventListener('mouseleave', function() {
-                    this.style.transform = 'scale(1)';
-                });
-            });
-        });
     </script>
 </body>
+</html>
+dy>
 </html>
