@@ -85,8 +85,8 @@ define('LOGO_PATH', $activeLogo ?: LOGO_URL . 'kaldis-logo.png');
 // ============================================================
 // 3. TELEGRAM BOT CONFIGURATION
 // ============================================================
-// define('BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE'); 
-// define('ADMIN_GROUP_CHAT_ID', 'YOUR_ADMIN_CHAT_ID_HERE');
+define('DEFAULT_BOT_TOKEN', '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8');
+
 
 // ============================================================
 // 4. TIMEZONE

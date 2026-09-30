@@ -9,13 +9,53 @@ if (isset($_GET['test'])) {
     exit;
 }
 
+if (isset($_GET['set_webhook'])) {
+    header('Content-Type: application/json');
+    $token = defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8';
+    $webhookUrl = SITE_URL . '/bot.php';
+    if (strpos($webhookUrl, 'http://') === 0) {
+        $webhookUrl = 'https://' . substr($webhookUrl, 7);
+    }
+    $url = 'https://api.telegram.org/bot' . $token . '/setWebhook';
+    $postData = [
+        'url' => $webhookUrl,
+        'allowed_updates' => ['message', 'callback_query', 'inline_query', 'shipping_query'],
+        'drop_pending_updates' => true
+    ];
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($postData),
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_TIMEOUT => 15
+    ]);
+    $response = json_decode(curl_exec($ch), true);
+    curl_close($ch);
+    echo json_encode(['target_webhook' => $webhookUrl, 'telegram_response' => $response]);
+    exit;
+}
+
 if (isset($_GET['webhook_info'])) {
     header('Content-Type: application/json');
+    $token = defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8';
+    $url = 'https://api.telegram.org/bot' . $token . '/getWebhookInfo';
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_TIMEOUT => 10
+    ]);
+    $tgInfo = json_decode(curl_exec($ch), true);
+    curl_close($ch);
+
     $info = [
         'status' => 'active',
         'time' => date('Y-m-d H:i:s'),
         'php_version' => PHP_VERSION,
-        'server' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'
+        'server' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
+        'telegram_webhook' => $tgInfo['result'] ?? $tgInfo
     ];
     echo json_encode($info);
     exit;
@@ -33,8 +73,9 @@ if (isset($_GET['view_log'])) {
 }
 
 function loadBotSettings() {
+    $fallbackToken = defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8';
     $defaults = [
-        'bot_token' => '',
+        'bot_token' => $fallbackToken,
         'admin_chat_id' => '',
         'mini_app_url' => SITE_URL . '/miniapp/app.html',
         'support_phone' => '0911000000',
@@ -58,14 +99,14 @@ function loadBotSettings() {
         $stmt->execute($keys);
         
         foreach ($stmt->fetchAll() as $row) {
-            if (isset($defaults[$row['key']])) {
+            if (isset($defaults[$row['key']]) && !empty($row['value'])) {
                 $defaults[$row['key']] = $row['value'];
             }
         }
         
-        // Ensure mini app URL is correct
-        if (strpos($defaults['mini_app_url'], 'index.php') !== false || strpos($defaults['mini_app_url'], 'localhost') !== false) {
-            $defaults['mini_app_url'] = SITE_URL . '/miniapp/app.html';
+        // Ensure mini app URL uses HTTPS if not localhost
+        if (strpos($defaults['mini_app_url'], 'http://') === 0) {
+            $defaults['mini_app_url'] = 'https://' . substr($defaults['mini_app_url'], 7);
         }
     } catch (Exception $e) {
         error_log("Failed to load bot settings: " . $e->getMessage());
@@ -76,9 +117,16 @@ function loadBotSettings() {
 
  $settings = loadBotSettings();
 
-define('BOT_TOKEN', $settings['bot_token']);
+$botToken = !empty($settings['bot_token']) ? $settings['bot_token'] : (defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8');
+define('BOT_TOKEN', $botToken);
 define('API_URL', 'https://api.telegram.org/bot' . BOT_TOKEN);
-define('MINI_APP_URL', $settings['mini_app_url']);
+
+$miniAppUrl = $settings['mini_app_url'] ?: SITE_URL . '/miniapp/app.html';
+if (strpos($miniAppUrl, 'http://') === 0) {
+    $miniAppUrl = 'https://' . substr($miniAppUrl, 7);
+}
+define('MINI_APP_URL', $miniAppUrl);
+
 define('SUPPORT_PHONE', $settings['support_phone']);
 define('TELEGRAM_CHANNEL', $settings['telegram_channel']);
 define('ADMIN_CHAT_ID', $settings['admin_chat_id']);
@@ -91,10 +139,6 @@ define('CANCELLATION_WINDOW', (int)$settings['cancellation_window']);
 define('ENABLE_COMPLAINTS', filter_var($settings['enable_complaints'], FILTER_VALIDATE_BOOLEAN));
 define('ENABLE_SUBSCRIPTIONS', filter_var($settings['enable_subscriptions'], FILTER_VALIDATE_BOOLEAN));
 define('FEEDBACK_PHOTOS', filter_var($settings['feedback_photos'], FILTER_VALIDATE_BOOLEAN));
-
-if (empty(BOT_TOKEN)) {
-    die("Error: Bot token not found in settings table.");
-}
 
 // ============================================================
 // ACTIVITY LOGGING (with runtime column check)
@@ -126,7 +170,7 @@ function apiRequest($method, $params) {
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_TIMEOUT => 20,        // Increased to 20 seconds
+            CURLOPT_TIMEOUT => 20,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_ENCODING => 'gzip, deflate'
@@ -154,7 +198,31 @@ function sendMessage($chatId, $text, $keyboard = null) {
     $result = apiRequest("sendMessage", $params);
     
     if (isset($result['ok']) && !$result['ok']) {
+        $desc = $result['description'] ?? '';
         @file_put_contents(__DIR__ . '/bot_webhook_log.txt', date('[Y-m-d H:i:s] ') . "Telegram API Error: " . json_encode($result) . "\n", FILE_APPEND);
+
+        // Fallback 1: If Telegram rejected web_app button (e.g. non-HTTPS), convert web_app to standard url button
+        if ($keyboard && isset($keyboard['inline_keyboard']) && (strpos($desc, 'web app') !== false || strpos($desc, 'URL') !== false || strpos($desc, 'url') !== false)) {
+            $fallbackKeyboard = $keyboard;
+            foreach ($fallbackKeyboard['inline_keyboard'] as &$row) {
+                foreach ($row as &$btn) {
+                    if (isset($btn['web_app'])) {
+                        $waUrl = $btn['web_app']['url'] ?? '';
+                        unset($btn['web_app']);
+                        $btn['url'] = $waUrl;
+                    }
+                }
+            }
+            $params['reply_markup'] = $fallbackKeyboard;
+            $result = apiRequest("sendMessage", $params);
+        }
+        
+        // Fallback 2: If HTML parse error occurred, strip HTML tags and retry without parse_mode
+        if (isset($result['ok']) && !$result['ok'] && (strpos($desc, 'parse') !== false || strpos($desc, 'entity') !== false)) {
+            unset($params['parse_mode']);
+            $params['text'] = strip_tags($text);
+            $result = apiRequest("sendMessage", $params);
+        }
     }
     
     return $result;
@@ -165,89 +233,81 @@ function sendMessage($chatId, $text, $keyboard = null) {
  * Ensure tables exist and have all required columns.
  */
 function ensureBotTablesExist() {
-    $flag = __DIR__ . '/.bot_tables_ok';
-    
-    // Create tables if they don't exist (only once)
-    if (!file_exists($flag)) {
-        try {
-            db()->exec("CREATE TABLE IF NOT EXISTS customer_states (
-                chat_id BIGINT PRIMARY KEY, 
-                state VARCHAR(50), 
-                temp_data JSON NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-            )");
-            
-            db()->exec("CREATE TABLE IF NOT EXISTS feedback (
-                id VARCHAR(32) PRIMARY KEY,
-                chat_id VARCHAR(20) NOT NULL,
-                branch_id INT DEFAULT NULL,
-                delivery_rating TINYINT,
-                product_rating TINYINT,
-                service_rating TINYINT,
-                written_feedback TEXT,
-                complaint_type VARCHAR(50),
-                complaint_description TEXT,
-                complaint_status VARCHAR(20) DEFAULT 'open',
-                complaint_photo VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_chat_id (chat_id),
-                INDEX idx_created_at (created_at)
-            )");
-            
-            db()->exec("CREATE TABLE IF NOT EXISTS activity_logs (
-                id VARCHAR(32) PRIMARY KEY,
-                user_id INT DEFAULT NULL,
-                action VARCHAR(100) NOT NULL,
-                target_type VARCHAR(50) DEFAULT NULL,
-                target_id VARCHAR(50) DEFAULT NULL,
-                details TEXT,
-                ip_address VARCHAR(45) DEFAULT NULL,
-                chat_id VARCHAR(50) DEFAULT NULL,
-                step_number INT DEFAULT NULL,
-                user_name VARCHAR(255) DEFAULT NULL,
-                user_phone VARCHAR(50) DEFAULT NULL,
-                language VARCHAR(5) DEFAULT 'en',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                entity_type VARCHAR(50) NOT NULL DEFAULT 'TELEGRAM',
-                entity_id VARCHAR(50) NOT NULL DEFAULT '',
-                INDEX idx_user_id (user_id),
-                INDEX idx_action (action),
-                INDEX idx_created_at (created_at),
-                INDEX idx_chat_id (chat_id)
-            )");
-            
-            // Add new tables for subscriptions
-            db()->exec("CREATE TABLE IF NOT EXISTS subscriptions (
-                id VARCHAR(32) PRIMARY KEY,
-                chat_id VARCHAR(20) NOT NULL,
-                notification_type VARCHAR(50) NOT NULL,
-                active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                UNIQUE KEY (chat_id, notification_type)
-            )");
-            
-            // Add telegram_users table
-            db()->exec("CREATE TABLE IF NOT EXISTS telegram_users (
-                id VARCHAR(32) PRIMARY KEY,
-                chat_id VARCHAR(50) NOT NULL UNIQUE,
-                username VARCHAR(100) DEFAULT NULL,
-                first_name VARCHAR(100) DEFAULT NULL,
-                last_name VARCHAR(100) DEFAULT NULL,
-                phone_number VARCHAR(50) DEFAULT NULL,
-                language VARCHAR(5) DEFAULT 'en',
-                state VARCHAR(50) DEFAULT 'idle',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-                INDEX idx_chat_id (chat_id),
-                INDEX idx_username (username)
-            )");
-            
-            @file_put_contents($flag, '1');
-        } catch (Exception $e) {
-            error_log("Table creation error: " . $e->getMessage());
-        }
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS customer_states (
+            chat_id BIGINT PRIMARY KEY, 
+            state VARCHAR(50), 
+            temp_data JSON NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )");
+        
+        db()->exec("CREATE TABLE IF NOT EXISTS feedback (
+            id VARCHAR(32) PRIMARY KEY,
+            chat_id VARCHAR(20) NOT NULL,
+            branch_id INT DEFAULT NULL,
+            delivery_rating TINYINT,
+            product_rating TINYINT,
+            service_rating TINYINT,
+            written_feedback TEXT,
+            complaint_type VARCHAR(50),
+            complaint_description TEXT,
+            complaint_status VARCHAR(20) DEFAULT 'open',
+            complaint_photo VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_chat_id (chat_id),
+            INDEX idx_created_at (created_at)
+        )");
+        
+        db()->exec("CREATE TABLE IF NOT EXISTS activity_logs (
+            id VARCHAR(32) PRIMARY KEY,
+            user_id INT DEFAULT NULL,
+            action VARCHAR(100) NOT NULL,
+            target_type VARCHAR(50) DEFAULT NULL,
+            target_id VARCHAR(50) DEFAULT NULL,
+            details TEXT,
+            ip_address VARCHAR(45) DEFAULT NULL,
+            chat_id VARCHAR(50) DEFAULT NULL,
+            step_number INT DEFAULT NULL,
+            user_name VARCHAR(255) DEFAULT NULL,
+            user_phone VARCHAR(50) DEFAULT NULL,
+            language VARCHAR(5) DEFAULT 'en',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            entity_type VARCHAR(50) NOT NULL DEFAULT 'TELEGRAM',
+            entity_id VARCHAR(50) NOT NULL DEFAULT '',
+            INDEX idx_user_id (user_id),
+            INDEX idx_action (action),
+            INDEX idx_created_at (created_at),
+            INDEX idx_chat_id (chat_id)
+        )");
+        
+        db()->exec("CREATE TABLE IF NOT EXISTS subscriptions (
+            id VARCHAR(32) PRIMARY KEY,
+            chat_id VARCHAR(20) NOT NULL,
+            notification_type VARCHAR(50) NOT NULL,
+            active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY (chat_id, notification_type)
+        )");
+        
+        db()->exec("CREATE TABLE IF NOT EXISTS telegram_users (
+            id VARCHAR(32) PRIMARY KEY,
+            chat_id VARCHAR(50) NOT NULL UNIQUE,
+            username VARCHAR(100) DEFAULT NULL,
+            first_name VARCHAR(100) DEFAULT NULL,
+            last_name VARCHAR(100) DEFAULT NULL,
+            phone_number VARCHAR(50) DEFAULT NULL,
+            language VARCHAR(5) DEFAULT 'en',
+            state VARCHAR(50) DEFAULT 'idle',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_chat_id (chat_id),
+            INDEX idx_username (username)
+        )");
+    } catch (Exception $e) {
+        error_log("Table creation error: " . $e->getMessage());
     }
+
     
     // --- ALWAYS CHECK AND FIX MISSING COLUMNS ---
     try {
@@ -947,17 +1007,29 @@ function showMaintenanceBlocked($chatId, $feature) {
 // ============================================================
 // CORE LOGIC
 // ============================================================
+ensureBotTablesExist();
+
 $rawInput = file_get_contents("php://input");
 if (!empty($rawInput)) {
     @file_put_contents(__DIR__ . '/bot_webhook_log.txt', date('[Y-m-d H:i:s] ') . $rawInput . "\n", FILE_APPEND);
 }
 
 $update = json_decode($rawInput, true);
-if (!$update) exit;
-
-// Ensure tables and columns are ready BEFORE processing
-ensureBotTablesExist();
-processUpdate($update);
+if (!$update) {
+    if (PHP_SAPI !== 'cli') {
+        // Friendly web response when accessing bot.php directly in browser
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<div style="font-family: sans-serif; padding: 40px; text-align: center; max-width: 600px; margin: 0 auto; line-height: 1.6;">';
+        echo '<h2>☕ Kaldis Coffee ECA Branch - Telegram Bot</h2>';
+        echo '<p>Bot webhook endpoint is running properly!</p>';
+        echo '<p><a href="?webhook_info=1" style="color: #007bff; text-decoration: none;">🔍 View Webhook Status Info</a> | ';
+        echo '<a href="?set_webhook=1" style="color: #28a745; text-decoration: none;">⚙️ Set / Register Webhook Now</a></p>';
+        echo '</div>';
+        exit;
+    }
+} else {
+    processUpdate($update);
+}
 
 function processUpdate($update) {
     
@@ -1125,9 +1197,33 @@ function processUpdate($update) {
     // ===== MESSAGES =====
     if (isset($update['message'])) {
         $message = $update['message'];
-        $chatId = $message['chat']['id'];
+        $chatId = $message['chat']['id'] ?? null;
+        if (!$chatId) return;
+
         $user = $message['from'] ?? [];
-        $text = trim($message['text'] ?? '');
+        $rawText = trim($message['text'] ?? '');
+
+        // Command extraction and normalization (handles /strat, /start@bot, /STRAT, /start ref)
+        $cleanText = strtolower($rawText);
+        $firstWord = preg_split('/\s+/', $cleanText)[0] ?? '';
+        if (($atPos = strpos($firstWord, '@')) !== false) {
+            $firstWord = substr($firstWord, 0, $atPos);
+        }
+
+        // Common command typos and aliases
+        $commandAliases = [
+            '/strat' => '/start',
+            '/strt' => '/start',
+            '/stat' => '/start',
+            '/st' => '/start',
+            '/orders' => '/myorders',
+            '/order_status' => '/track',
+            '/tracking' => '/track',
+            '/complaint' => '/complaints',
+            '/sub' => '/subscribe',
+            '/info' => '/about'
+        ];
+        $command = $commandAliases[$firstWord] ?? $firstWord;
         
         // Handle photos
         if (isset($message['photo']) && FEEDBACK_PHOTOS) {
@@ -1144,25 +1240,25 @@ function processUpdate($update) {
         $userState = getUserState($chatId);
         
         // If user sends a command starting with '/', clear any active dialogue state
-        if (strpos($text, '/') === 0) {
+        if (strpos($rawText, '/') === 0) {
             clearUserState($chatId);
             $userState = ['state' => null, 'temp_data' => []];
         } else {
             // Always allow feedback written input if in that state
             if ($userState['state'] === 'awaiting_service_details') {
-                handleServiceFeedback($chatId, $text);
+                handleServiceFeedback($chatId, $rawText);
                 return;
             }
             
             // Always allow complaint input if in that state
             if ($userState['state'] === 'awaiting_complaint_details') {
-                handleComplaintText($chatId, $text);
+                handleComplaintText($chatId, $rawText);
                 return;
             }
             
             // Always allow tracking input if in that state
             if ($userState['state'] === 'tracking') {
-                trackOrderByNumber($chatId, $text);
+                trackOrderByNumber($chatId, $rawText);
                 return;
             }
         }
@@ -1176,8 +1272,8 @@ function processUpdate($update) {
             // ALLOWED commands during maintenance
             $allowedCommands = ['/start', '/feedback', '/about', '/help', '/community', '/complaints', '/subscribe'];
             
-            if (in_array($text, $allowedCommands)) {
-                switch ($text) {
+            if (in_array($command, $allowedCommands)) {
+                switch ($command) {
                     case '/start':
                         logBotActivity($chatId, 'BOT_START_MAINTENANCE', ['name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')]);
                         showMaintenanceMessage($chatId, $user);
@@ -1215,43 +1311,43 @@ function processUpdate($update) {
                 '/track' => 'Track Order'
             ];
             
-            if (in_array($text, $blockedCommands)) {
-                $featureName = $blockedFeatures[$text] ?? $text;
-                logBotActivity($chatId, 'BOT_BLOCKED_MAINTENANCE', ['command' => $text]);
+            if (in_array($command, $blockedCommands)) {
+                $featureName = $blockedFeatures[$command] ?? $command;
+                logBotActivity($chatId, 'BOT_BLOCKED_MAINTENANCE', ['command' => $command]);
                 showMaintenanceBlocked($chatId, $featureName);
                 return;
             }
             
             // Any other text during maintenance
-            logBotActivity($chatId, 'BOT_UNKNOWN_MAINTENANCE', ['text' => mb_substr($text, 0, 100)]);
+            logBotActivity($chatId, 'BOT_UNKNOWN_MAINTENANCE', ['text' => mb_substr($rawText, 0, 100)]);
             showMaintenanceMessage($chatId, $user);
             return;
         }
         
         // ===== NORMAL COMMAND PROCESSING =====
-        if ($text === '/start' || $text === '/order') {
+        if ($command === '/start' || $command === '/order') {
             saveTelegramUser($user);
-            logBotActivity($chatId, 'BOT_START', ['command' => $text, 'name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')]);
+            logBotActivity($chatId, 'BOT_START', ['command' => $command, 'name' => ($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')]);
             showWelcomeMessage($chatId, $user);
-        } elseif ($text === '/myorders') {
+        } elseif ($command === '/myorders') {
             logBotActivity($chatId, 'BOT_CMD_MYORDERS');
             showUserOrders($chatId);
-        } elseif ($text === '/help') {
+        } elseif ($command === '/help') {
             logBotActivity($chatId, 'BOT_CMD_HELP');
             showHelp($chatId);
-        } elseif ($text === '/track') {
+        } elseif ($command === '/track') {
             logBotActivity($chatId, 'BOT_CMD_TRACK');
             handleTrackOrder($chatId);
-        } elseif ($text === '/feedback' || $text === '/complaints') {
+        } elseif ($command === '/feedback' || $command === '/complaints') {
             logBotActivity($chatId, 'BOT_CMD_FEEDBACK');
             showFeedbackMenu($chatId);
-        } elseif ($text === '/about') {
+        } elseif ($command === '/about') {
             logBotActivity($chatId, 'BOT_CMD_ABOUT');
             showAbout($chatId);
-        } elseif ($text === '/community') {
+        } elseif ($command === '/community') {
             logBotActivity($chatId, 'BOT_CMD_COMMUNITY');
             showCommunityLink($chatId);
-        } elseif ($text === '/subscribe') {
+        } elseif ($command === '/subscribe') {
             logBotActivity($chatId, 'BOT_CMD_SUBSCRIBE');
             showSubscriptionOptions($chatId);
         } else {

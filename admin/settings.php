@@ -168,6 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Automatically sync webhook when saving Telegram tab
             if ($submittedTab === 'telegram' && !empty($settingsToUpdate['bot_token'])) {
                 $suggestedUrl = rtrim(SITE_URL, '/') . '/bot.php';
+                if (strpos($suggestedUrl, 'http://') === 0) {
+                    $suggestedUrl = 'https://' . substr($suggestedUrl, 7);
+                }
                 $wRes = setWebhook($settingsToUpdate['bot_token'], $suggestedUrl);
                 if ($wRes['success']) {
                     $success = "Settings saved & Telegram Webhook connected successfully!";
