@@ -802,7 +802,7 @@ function handleTelegramCallback($db) {
             } else {
                 $msg = "❌ <b>Order Update</b>\n\nYour order <code>{$escOn}</code> could not be confirmed.\n\n"
                      . "This may be due to payment verification. Please contact Kaldis ECA Support:\n"
-                     . "📞 0930332185\n💬 @KaldisCoffeeEthiopia\n\n"
+                     . "📞 0992098459\n💬 @ECAKB\n\n"
                      . "Refund will be processed promptly if payment was made.";
             }
 
@@ -975,7 +975,7 @@ function sendCustomerNotification($od, $items) {
         $msg .= "🏦 {$escPayMeth}\n🏢 {$escAddr}\n📅 {$escDate}\n";
         $msg .= "━━━━━━━━━━━━━━\n";
         $msg .= "⏳ <b>ክፍያ ከተረጋገጠ በኋላ ትኩስ ቡናዎን እና ምግቦችን ወደ ቢሮዎ እናደርሳለን።</b>\n\n";
-        $msg .= "📞 0930332185 | 💬 @KaldisCoffeeEthiopia\n\n";
+        $msg .= "📞 0992098459 | 💬 @ECAKB\n\n";
         $msg .= "ካልዲስ ቡናን ስለመረጡ እናመሰግናለን! ☕";
     } else {
         $msg  = "🎉 <b>Your Office Order Has Been Placed Successfully!</b>\n━━━━━━━━━━━━━━\n";
@@ -987,7 +987,7 @@ function sendCustomerNotification($od, $items) {
         $msg .= "🏦 {$escPayMeth}\n🏢 {$escAddr}\n📅 {$escDate}\n";
         $msg .= "━━━━━━━━━━━━━━\n";
         $msg .= "⏳ <b>Our barista is preparing your order for office desk delivery.</b>\n\n";
-        $msg .= "📞 0930332185 | 💬 @KaldisCoffeeEthiopia\n\n";
+        $msg .= "📞 0992098459 | 💬 @ECAKB\n\n";
         $msg .= "Thank you for choosing Kaldis Coffee! ☕";
     }
 

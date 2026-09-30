@@ -117,8 +117,8 @@ function loadBotSettings() {
         'bot_token' => $fallbackToken,
         'admin_chat_id' => '',
         'mini_app_url' => $defaultMiniAppUrl,
-        'support_phone' => '0911000000',
-        'telegram_channel' => 'https://t.me/KaldisCoffeeEthiopia',
+        'support_phone' => '0992098459',
+        'telegram_channel' => 'https://t.me/ECAKB',
         'maintenance_mode' => 'false',
         'auto_respond' => 'true',
         'notification_enabled' => 'true',
@@ -1552,12 +1552,12 @@ function showHelp($chatId) {
                    "/help - Show this help\n\n";
     }
     
-    $message .= "<b>Need Help?</b>\nPhone: " . SUPPORT_PHONE . "\nTelegram: @KaldisCoffeeEthiopia";
+    $message .= "<b>Need Help?</b>\nPhone: " . SUPPORT_PHONE . "\nTelegram: @ECAKB";
     
     $keyboard = [
         'inline_keyboard' => [
             [
-                ['text' => '💬 Contact Support', 'url' => 'https://t.me/KaldisCoffeeEthiopia']
+                ['text' => '💬 Contact Support', 'url' => 'https://t.me/ECAKB']
             ],
             [
                 ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']

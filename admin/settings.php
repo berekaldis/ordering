@@ -386,13 +386,13 @@ if (!empty($botToken)) {
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Support Phone</label>
-                                            <input type="text" name="support_phone" value="<?php echo htmlspecialchars($settings['support_phone'] ?? '0911000000'); ?>"
+                                            <input type="text" name="support_phone" value="<?php echo htmlspecialchars($settings['support_phone'] ?? '0992098459'); ?>"
                                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                                             <p class="text-xs text-gray-500 mt-1">Customer support contact number</p>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Telegram Channel</label>
-                                            <input type="url" name="telegram_channel" value="<?php echo htmlspecialchars($settings['telegram_channel'] ?? 'https://t.me/KaldisCoffeeEthiopia'); ?>"
+                                            <input type="url" name="telegram_channel" value="<?php echo htmlspecialchars($settings['telegram_channel'] ?? 'https://t.me/ECAKB'); ?>"
                                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                                             <p class="text-xs text-gray-500 mt-1">Link to your Telegram channel</p>
                                         </div>
