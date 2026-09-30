@@ -400,14 +400,19 @@ function ensureBotTablesExist() {
             'complaint_photo' => "VARCHAR(255) DEFAULT NULL"
         ];
         
-        foreach ($complaintColumns as $col => $def) {
-            if (!in_array($col, $feedbackColumns)) {
-                db()->exec("ALTER TABLE feedback ADD COLUMN $col $def");
-                error_log("Added missing column '$col' to feedback");
-                $columnsAdded = true;
+        // Add rejection_reason column to pre_orders if missing
+        $orderCols = [];
+        $res = db()->query("SHOW COLUMNS FROM pre_orders");
+        if ($res) {
+            while ($row = $res->fetch(PDO::FETCH_ASSOC)) {
+                $orderCols[] = $row['Field'];
             }
         }
-        
+        if (!in_array('rejection_reason', $orderCols)) {
+            db()->exec("ALTER TABLE pre_orders ADD COLUMN rejection_reason VARCHAR(255) DEFAULT NULL");
+            $columnsAdded = true;
+        }
+
         if ($columnsAdded) {
             error_log("Table structure updated successfully.");
         }
@@ -1035,6 +1040,184 @@ if (!$update) {
     processUpdate($update);
 }
 
+// ============================================================
+// ADMIN TELEGRAM CALLBACK HANDLERS (Approve / Reject)
+// ============================================================
+function handleAdminOrderApprove($cq) {
+    $data = $cq['data'] ?? '';
+    $orderId = intval(str_replace('approve_', '', $data));
+    $callbackId = $cq['id'] ?? '';
+    if ($orderId <= 0) return;
+    
+    try {
+        $db = db();
+        $stmt = $db->prepare("SELECT * FROM pre_orders WHERE id = ? LIMIT 1");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$order) {
+            apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => 'Order not found', 'show_alert' => true]);
+            return;
+        }
+        
+        if ($order['status'] !== 'Pending') {
+            apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => "Order #{$order['order_number']} is already {$order['status']}", 'show_alert' => true]);
+            return;
+        }
+        
+        $db->prepare("UPDATE pre_orders SET status = 'Confirmed', updated_at = NOW() WHERE id = ?")->execute([$orderId]);
+        apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => "✅ Order #{$order['order_number']} Confirmed!", 'show_alert' => true]);
+        
+        // Notify customer
+        if (!empty($order['chat_id'])) {
+            $escNum  = htmlspecialchars($order['order_number']);
+            $escDate = htmlspecialchars($order['delivery_date']);
+            $escAddr = htmlspecialchars($order['delivery_address']);
+            
+            $msg = "✅ <b>Order Confirmed!</b>\n\n"
+                 . "Your Kaldis Coffee order <code>{$escNum}</code> has been confirmed! ☕🎉\n\n"
+                 . "📅 <b>Delivery:</b> {$escDate}\n"
+                 . "🏢 <b>Office Desk:</b> {$escAddr}\n\n"
+                 . "Our runner is preparing to deliver your order to your office desk. Thank you! ☕";
+                 
+            sendMessage($order['chat_id'], $msg);
+        }
+        
+        // Update Admin Telegram message
+        if (isset($cq['message']['chat']['id']) && isset($cq['message']['message_id'])) {
+            $origText = $cq['message']['text'] ?? '';
+            $newText = "✅ <b>[CONFIRMED & APPROVED BY ADMIN]</b>\n━━━━━━━━━━━━━━\n" . htmlspecialchars($origText);
+            apiRequest("editMessageText", [
+                'chat_id' => $cq['message']['chat']['id'],
+                'message_id' => $cq['message']['message_id'],
+                'text' => $newText,
+                'parse_mode' => 'HTML',
+                'reply_markup' => ['inline_keyboard' => []]
+            ]);
+        }
+    } catch (Exception $e) {
+        error_log("Admin approve error: " . $e->getMessage());
+    }
+}
+
+function handleAdminOrderRejectPrompt($cq) {
+    $data = $cq['data'] ?? '';
+    $orderId = intval(str_replace('reject_', '', $data));
+    $callbackId = $cq['id'] ?? '';
+    if ($orderId <= 0) return;
+    
+    try {
+        $db = db();
+        $stmt = $db->prepare("SELECT * FROM pre_orders WHERE id = ? LIMIT 1");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$order) {
+            apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => 'Order not found', 'show_alert' => true]);
+            return;
+        }
+        
+        if ($order['status'] !== 'Pending') {
+            apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => "Order #{$order['order_number']} is already {$order['status']}", 'show_alert' => true]);
+            return;
+        }
+        
+        $msg = "❌ <b>Reject Order #{$order['order_number']}</b>\n\n"
+             . "Please select the reason for rejection to send to customer:";
+             
+        $keyboard = [
+            'inline_keyboard' => [
+                [['text' => '📦 Your order is out of stock (እቃ አልቋል)', 'callback_data' => 'reject_reason_' . $orderId . '_out_of_stock']],
+                [['text' => '🚚 Delivery unavailable (ማድረስ አንችልም)', 'callback_data' => 'reject_reason_' . $orderId . '_no_delivery']],
+                [['text' => '💳 Payment issue (የክፍያ ችግር)', 'callback_data' => 'reject_reason_' . $orderId . '_payment_issue']],
+                [['text' => '⏰ Kitchen closed / Past working hours', 'callback_data' => 'reject_reason_' . $orderId . '_kitchen_closed']],
+                [['text' => '✏️ Other reason', 'callback_data' => 'reject_reason_' . $orderId . '_custom']]
+            ]
+        ];
+        
+        if (isset($cq['message']['chat']['id']) && isset($cq['message']['message_id'])) {
+            apiRequest("editMessageText", [
+                'chat_id' => $cq['message']['chat']['id'],
+                'message_id' => $cq['message']['message_id'],
+                'text' => $msg,
+                'parse_mode' => 'HTML',
+                'reply_markup' => $keyboard
+            ]);
+        }
+    } catch (Exception $e) {
+        error_log("Admin reject prompt error: " . $e->getMessage());
+    }
+}
+
+function handleAdminOrderRejectSubmit($cq) {
+    $data = $cq['data'] ?? '';
+    $callbackId = $cq['id'] ?? '';
+    
+    $parts = explode('_', $data);
+    if (count($parts) < 4) return;
+    
+    $orderId = intval($parts[2]);
+    $reasonCode = implode('_', array_slice($parts, 3));
+    
+    $reasonMap = [
+        'out_of_stock' => 'Your order is out of stock (የታዘዙት እቃ አልቋል)',
+        'no_delivery'  => 'Office desk delivery is currently unavailable for this location/time',
+        'payment_issue'=> 'Payment verification could not be completed',
+        'kitchen_closed'=> 'Order was placed outside kitchen operating hours',
+        'custom'       => 'Order could not be accepted'
+    ];
+    
+    $reasonText = $reasonMap[$reasonCode] ?? 'Order could not be accepted';
+    
+    try {
+        $db = db();
+        $stmt = $db->prepare("SELECT * FROM pre_orders WHERE id = ? LIMIT 1");
+        $stmt->execute([$orderId]);
+        $order = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$order) {
+            apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => 'Order not found', 'show_alert' => true]);
+            return;
+        }
+        
+        $db->prepare("UPDATE pre_orders SET status = 'Rejected', rejection_reason = ?, updated_at = NOW() WHERE id = ?")->execute([$reasonText, $orderId]);
+        apiRequest("answerCallbackQuery", ['callback_query_id' => $callbackId, 'text' => "❌ Order #{$order['order_number']} Rejected", 'show_alert' => true]);
+        
+        // Notify Customer
+        if (!empty($order['chat_id'])) {
+            $escNum = htmlspecialchars($order['order_number']);
+            $escReason = htmlspecialchars($reasonText);
+            
+            $msg = "❌ <b>Order Update</b>\n\n"
+                 . "Your Kaldis Coffee order <code>{$escNum}</code> could not be accepted.\n\n"
+                 . "<b>Reason:</b> {$escReason}\n\n"
+                 . "If payment was made, a refund will be processed promptly.\n\n"
+                 . "For support, contact Kaldis ECA Support:\n"
+                 . "📞 0992098459 | 💬 @ECAKB\n\n"
+                 . "Thank you for your understanding. ☕";
+                 
+            sendMessage($order['chat_id'], $msg);
+        }
+        
+        // Update Admin Telegram Message
+        if (isset($cq['message']['chat']['id']) && isset($cq['message']['message_id'])) {
+            $newText = "❌ <b>[REJECTED BY ADMIN]</b>\n"
+                     . "📋 Order: <code>" . htmlspecialchars($order['order_number']) . "</code>\n"
+                     . "<b>Reason:</b> " . htmlspecialchars($reasonText);
+                     
+            apiRequest("editMessageText", [
+                'chat_id' => $cq['message']['chat']['id'],
+                'message_id' => $cq['message']['message_id'],
+                'text' => $newText,
+                'parse_mode' => 'HTML',
+                'reply_markup' => ['inline_keyboard' => []]
+            ]);
+        }
+    } catch (Exception $e) {
+        error_log("Admin reject submit error: " . $e->getMessage());
+    }
+}
+
 function processUpdate($update) {
     
     // ===== CALLBACK QUERIES =====
@@ -1047,6 +1230,20 @@ function processUpdate($update) {
         
         apiRequest("answerCallbackQuery", ['callback_query_id' => $cq['id']]);
         logBotActivity($chatId, 'BOT_CALLBACK', ['callback' => $data, 'from_id' => $fromId]);
+
+        // ===== ADMIN ACTION CALLBACKS =====
+        if (strpos($data, 'approve_') === 0) {
+            handleAdminOrderApprove($cq);
+            return;
+        }
+        if (strpos($data, 'reject_reason_') === 0) {
+            handleAdminOrderRejectSubmit($cq);
+            return;
+        }
+        if (strpos($data, 'reject_') === 0) {
+            handleAdminOrderRejectPrompt($cq);
+            return;
+        }
         
         // ===== MAINTENANCE: Block order-related callbacks =====
         if (MAINTENANCE_MODE) {
@@ -1336,7 +1533,8 @@ function showMainMenu($chatId) {
 }
 
 function getMainKeyboard($chatId) {
-    $miniAppUrl = MINI_APP_URL . '?chat_id=' . $chatId;
+    $miniAppUrl  = MINI_APP_URL . '?chat_id=' . $chatId;
+    $trackAppUrl = MINI_APP_URL . '?chat_id=' . $chatId . '&action=track';
     
     $keyboard = [
         'inline_keyboard' => [
@@ -1345,7 +1543,7 @@ function getMainKeyboard($chatId) {
             ],
             [
                 ['text' => '📋 My Orders', 'callback_data' => 'show_my_orders'],
-                ['text' => '🔍 Track Order', 'callback_data' => 'track_order']
+                ['text' => '🔍 Track Order', 'web_app' => ['url' => $trackAppUrl]]
             ],
             [
                 ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback'],

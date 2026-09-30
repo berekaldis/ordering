@@ -3,6 +3,30 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 $admin = getCurrentAdmin();
 ?>
 
+<!-- Mobile Top Header Bar (visible on mobile screens <= 768px) -->
+<div class="mobile-nav-bar md:hidden flex items-center justify-between bg-amber-950 text-white px-4 py-3 shadow-md border-b border-amber-900 sticky top-0 z-40 w-full">
+    <div class="flex items-center gap-3">
+        <button id="mobileMenuBtn" onclick="openMobileSidebar()" class="p-2 text-amber-200 hover:text-white rounded-lg hover:bg-amber-900/60 focus:outline-none transition-colors">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+            </svg>
+        </button>
+        <div class="flex items-center gap-2">
+            <img src="<?php echo htmlspecialchars(getLogoUrl() ?: LOGO_PATH); ?>" alt="Logo" class="w-7 h-7 rounded-full object-cover border border-amber-500/50">
+            <span class="font-extrabold text-sm tracking-wide text-amber-100">Kaldis Admin</span>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="dashboard.php" class="text-amber-200 hover:text-white text-xs font-semibold px-2.5 py-1.5 bg-amber-900/60 hover:bg-amber-800 rounded-lg transition-colors flex items-center gap-1.5">
+            <i class="fas fa-home text-xs"></i>
+            <span>Home</span>
+        </a>
+    </div>
+</div>
+
+<!-- Mobile Sidebar Backdrop -->
+<div id="sidebarBackdrop" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 hidden transition-opacity md:hidden" onclick="closeMobileSidebar()"></div>
+
 <div class="sidebar-wrapper">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -942,19 +966,28 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Function to open sidebar on mobile (can be called from hamburger menu)
+    // Function to open sidebar on mobile
     window.openMobileSidebar = function() {
-        if (sidebar && window.innerWidth <= 768) {
-            sidebar.classList.add('mobile-open');
-        }
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('sidebarBackdrop');
+        if (sb) sb.classList.add('mobile-open');
+        if (bd) bd.classList.remove('hidden');
+    };
+    
+    // Function to close sidebar on mobile
+    window.closeMobileSidebar = function() {
+        const sb = document.getElementById('sidebar');
+        const bd = document.getElementById('sidebarBackdrop');
+        if (sb) sb.classList.remove('mobile-open');
+        if (bd) bd.classList.add('hidden');
     };
     
     // Close sidebar on mobile when clicking a link
     const navLinks = document.querySelectorAll('.nav-item');
     navLinks.forEach(link => {
         link.addEventListener('click', function() {
-            if (window.innerWidth <= 768 && sidebar) {
-                sidebar.classList.remove('mobile-open');
+            if (window.innerWidth <= 768) {
+                closeMobileSidebar();
             }
         });
     });
@@ -964,44 +997,76 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('resize', function() {
     const sidebar = document.getElementById('sidebar');
     const mainContent = document.querySelector('.main-content, .flex-1');
+    const bd = document.getElementById('sidebarBackdrop');
     
-    if (window.innerWidth <= 768 && mainContent) {
-        mainContent.style.marginLeft = '0';
-    } else if (mainContent && sidebar) {
-        const isCollapsed = sidebar.classList.contains('collapsed');
-        mainContent.style.marginLeft = isCollapsed ? '80px' : '280px';
+    if (window.innerWidth <= 768) {
+        if (mainContent) mainContent.style.marginLeft = '0';
+    } else {
+        if (bd) bd.classList.add('hidden');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+        if (mainContent && sidebar) {
+            const isCollapsed = sidebar.classList.contains('collapsed');
+            mainContent.style.marginLeft = isCollapsed ? '80px' : '280px';
+        }
     }
 });
 </script>
 
-<!-- Add this CSS to ensure compatibility with dashboard layout -->
+<!-- Global Mobile Responsiveness Enhancements -->
 <style>
-/* Ensure proper spacing for dashboard layout */
+/* Dashboard & Main Layout spacing */
 .flex.h-screen > .flex-1 {
     transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     margin-left: 280px;
 }
 
-/* When sidebar is collapsed */
 .sidebar.collapsed + .flex-1,
 .sidebar.collapsed ~ .flex-1 {
     margin-left: 80px;
 }
 
-/* Mobile responsive */
+/* Mobile Responsiveness Rules (<= 768px) */
 @media (max-width: 768px) {
+    .flex.h-screen {
+        flex-direction: column !important;
+        height: auto !important;
+        min-height: 100vh !important;
+    }
     .flex.h-screen > .flex-1 {
         margin-left: 0 !important;
+        width: 100% !important;
+    }
+    .sidebar {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        z-index: 50 !important;
+        transform: translateX(-100%) !important;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        width: 280px !important;
+        box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3) !important;
+    }
+    .sidebar.mobile-open {
+        transform: translateX(0) !important;
+    }
+    /* Auto table scrolling on mobile */
+    .table-container, .overflow-x-auto, div:has(> table) {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        max-width: 100vw !important;
+    }
+    table {
+        min-width: 600px;
+    }
+    /* Modal responsiveness */
+    .modal-content, [role="dialog"], div[class*="rounded"]:has(table), div[class*="bg-white"]:has(form) {
+        max-width: 95vw !important;
     }
 }
 
-/* Smooth transitions for all interactive elements */
 .nav-item, .user-card, .sidebar-toggle {
     will-change: transform;
-}
-
-/* Prevent text selection on double click */
-.nav-item, .sidebar-toggle {
     user-select: none;
 }
 </style>

@@ -88,10 +88,10 @@ function escHtml($str) {
  * Validate and normalize Ethiopian phone number.
  */
 function cleanPhone($phone) {
-    $d = preg_replace('/[^0-9]/', '', $phone);
-    if (strlen($d) >= 10 && $d[0] === '0') $d = substr($d, 1);
-    if (strlen($d) === 12 && substr($d, 0, 3) === '251') $d = substr($d, 3);
-    if (strlen($d) === 9 && preg_match('/^[0-9]{9}$/', $d)) {
+    $d = preg_replace('/[^0-9]/', '', (string)$phone);
+    if (strpos($d, '251') === 0) $d = substr($d, 3);
+    if (strpos($d, '0') === 0) $d = substr($d, 1);
+    if (strlen($d) === 9 && preg_match('/^[79][0-9]{8}$/', $d)) {
         return ['ok' => true, 'intl' => '+251' . $d, 'local' => '0' . $d];
     }
     return ['ok' => false];
@@ -388,7 +388,24 @@ function handleGetOrderStatus($db) {
     $ci = clean($_GET['chat_id']      ?? $_POST['chat_id']      ?? '', 50);
 
     if (empty($on)) {
-        echo json_encode(['success' => false, 'message' => 'Order number required']);
+        if (!empty($ci)) {
+            $s = $db->prepare("SELECT order_number FROM pre_orders WHERE chat_id = ? ORDER BY created_at DESC LIMIT 1");
+            $s->execute([$ci]);
+            $r = $s->fetch(PDO::FETCH_ASSOC);
+            if ($r) $on = $r['order_number'];
+        } elseif (!empty($phone)) {
+            $pr = cleanPhone($phone);
+            if ($pr['ok']) {
+                $s = $db->prepare("SELECT order_number FROM pre_orders WHERE phone_number = ? ORDER BY created_at DESC LIMIT 1");
+                $s->execute([$pr['intl']]);
+                $r = $s->fetch(PDO::FETCH_ASSOC);
+                if ($r) $on = $r['order_number'];
+            }
+        }
+    }
+
+    if (empty($on)) {
+        echo json_encode(['success' => false, 'message' => 'No recent order found to track. Tap Order Now to get started!']);
         return;
     }
 
