@@ -434,7 +434,7 @@ function getStarDisplay($rating) {
 }
 
 // ============================================================
-// FEEDBACK SYSTEM (Combined Ratings and Complaints)
+// FEEDBACK SYSTEM (Web-App Aligned Rating & Complaints)
 // ============================================================
 
 function showFeedbackMenu($chatId) {
@@ -445,11 +445,11 @@ function showFeedbackMenu($chatId) {
     $keyboard = [
         'inline_keyboard' => [
             [
-                ['text' => '⭐ Rate Service', 'callback_data' => 'rate_service'],
+                ['text' => '⭐ Rate Experience', 'callback_data' => 'rate_service'],
                 ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint']
             ],
             [
-                ['text' => '📋 My Feedback', 'callback_data' => 'my_feedback'],
+                ['text' => '📋 My Reviews', 'callback_data' => 'my_feedback'],
                 ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
             ]
         ]
@@ -459,11 +459,11 @@ function showFeedbackMenu($chatId) {
 }
 
 function startServiceRating($chatId) {
-    setUserState($chatId, 'awaiting_service_rating');
+    setUserState($chatId, 'awaiting_service_rating', []);
     
-    $message = "<b>⭐ Rate Our Service</b>\n\n" .
-               "How would you rate your overall experience with Kaldis Coffee - ECA Branch?\n\n" .
-               "Your feedback helps us improve our coffee, food, and office delivery service.";
+    $message = "<b>⭐ Rate Your Experience</b>\n\n" .
+               "🏆 <b>Step 1 of 3: Service Quality</b>\n" .
+               "How would you rate our staff & customer service experience?";
     
     $keyboard = [
         'inline_keyboard' => [
@@ -482,18 +482,70 @@ function startServiceRating($chatId) {
     sendMessage($chatId, $message, $keyboard);
 }
 
-function handleServiceRating($chatId, $rating) {
-    setUserState($chatId, 'awaiting_service_details', ['service_rating' => $rating, 'product_rating' => $rating, 'delivery_rating' => $rating]);
+function handleServiceRatingStep($chatId, $rating) {
+    setUserState($chatId, 'awaiting_product_rating', ['service_rating' => $rating]);
     logBotActivity($chatId, 'BOT_SERVICE_RATING', ['rating' => $rating]);
     
-    $stars = getStarDisplay($rating);
-    $message = "<b>⭐ Rating Received (" . $stars . ")</b>\n\n" .
-               "Please share any additional details to help us improve:\n" .
-               "• ☕ <b>Product Quality</b> (Coffee taste, food freshness)\n" .
-               "• ⏱️ <b>Delivery Time & Speed</b> (Desk delivery timing)\n" .
-               "• 🏆 <b>Staff & Service</b> (Service experience)\n" .
-               "• 💬 <b>Others / Suggestions</b>\n\n" .
-               "Type your detailed feedback below or tap <b>Skip</b>:";
+    $message = "<b>⭐ Rate Your Experience</b>\n\n" .
+               "☕ <b>Step 2 of 3: Product Quality</b>\n" .
+               "How would you rate coffee taste, food freshness & item quality?";
+    
+    $keyboard = [
+        'inline_keyboard' => [
+            [
+                ['text' => '1 ⭐', 'callback_data' => 'rate_product_1'],
+                ['text' => '2 ⭐⭐', 'callback_data' => 'rate_product_2'],
+                ['text' => '3 ⭐⭐⭐', 'callback_data' => 'rate_product_3']
+            ],
+            [
+                ['text' => '4 ⭐⭐⭐⭐', 'callback_data' => 'rate_product_4'],
+                ['text' => '5 ⭐⭐⭐⭐⭐', 'callback_data' => 'rate_product_5']
+            ]
+        ]
+    ];
+    
+    sendMessage($chatId, $message, $keyboard);
+}
+
+function handleProductRatingStep($chatId, $rating) {
+    $state = getUserState($chatId);
+    $tempData = $state['temp_data'] ?? [];
+    $tempData['product_rating'] = $rating;
+    
+    setUserState($chatId, 'awaiting_delivery_rating', $tempData);
+    logBotActivity($chatId, 'BOT_PRODUCT_RATING', ['rating' => $rating]);
+    
+    $message = "<b>⭐ Rate Your Experience</b>\n\n" .
+               "🛵 <b>Step 3 of 3: Waiter Delivery & Response</b>\n" .
+               "How would you rate our office desk delivery speed & waiter response?";
+    
+    $keyboard = [
+        'inline_keyboard' => [
+            [
+                ['text' => '1 ⭐', 'callback_data' => 'rate_delivery_1'],
+                ['text' => '2 ⭐⭐', 'callback_data' => 'rate_delivery_2'],
+                ['text' => '3 ⭐⭐⭐', 'callback_data' => 'rate_delivery_3']
+            ],
+            [
+                ['text' => '4 ⭐⭐⭐⭐', 'callback_data' => 'rate_delivery_4'],
+                ['text' => '5 ⭐⭐⭐⭐⭐', 'callback_data' => 'rate_delivery_5']
+            ]
+        ]
+    ];
+    
+    sendMessage($chatId, $message, $keyboard);
+}
+
+function handleDeliveryRatingStep($chatId, $rating) {
+    $state = getUserState($chatId);
+    $tempData = $state['temp_data'] ?? [];
+    $tempData['delivery_rating'] = $rating;
+    
+    setUserState($chatId, 'awaiting_service_details', $tempData);
+    logBotActivity($chatId, 'BOT_DELIVERY_RATING', ['rating' => $rating]);
+    
+    $message = "<b>💬 Customer Comment (Optional)</b>\n\n" .
+               "Please type any detailed comments or suggestions below to help us improve, or tap <b>Skip</b>:";
     
     $keyboard = [
         'inline_keyboard' => [
@@ -515,31 +567,75 @@ function handleServiceFeedback($chatId, $text) {
 function saveServiceFeedback($chatId, $data) {
     try {
         $id = bin2hex(random_bytes(16));
+        
+        // Fetch recent order details for client name & phone if available
+        $stmtOrder = db()->prepare("
+            SELECT order_number, client_name, phone_number 
+            FROM pre_orders 
+            WHERE chat_id = ? 
+            ORDER BY created_at DESC LIMIT 1
+        ");
+        $stmtOrder->execute([(string)$chatId]);
+        $recentOrder = $stmtOrder->fetch();
+        
+        // Fetch Telegram User Name
+        $stmtTg = db()->prepare("SELECT first_name, last_name, phone_number FROM telegram_users WHERE chat_id = ? LIMIT 1");
+        $stmtTg->execute([(string)$chatId]);
+        $tgUser = $stmtTg->fetch();
+        
+        $orderNumber = $recentOrder['order_number'] ?? null;
+        $clientName  = $recentOrder['client_name'] ?? (trim(($tgUser['first_name'] ?? '') . ' ' . ($tgUser['last_name'] ?? '')) ?: 'Valued Customer');
+        $phoneNumber = $recentOrder['phone_number'] ?? ($tgUser['phone_number'] ?? '');
+        
         $stmt = db()->prepare("
-            INSERT INTO feedback (id, chat_id, service_rating, product_rating, delivery_rating, written_feedback, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW())
+            INSERT INTO feedback (id, order_number, chat_id, phone_number, client_name, branch_id, service_rating, product_rating, delivery_rating, written_feedback, created_at)
+            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NOW())
         ");
         $stmt->execute([
-            $id, 
+            $id,
+            $orderNumber,
             (string)$chatId,
+            $phoneNumber,
+            $clientName,
             $data['service_rating'] ?? null,
             $data['product_rating'] ?? null,
             $data['delivery_rating'] ?? null,
             $data['service_feedback'] ?? null
         ]);
         
-        notifyAdminFeedback($id, $data, 'service');
+        // Admin Telegram Notification matching webapp format
+        if (!empty(ADMIN_CHAT_ID)) {
+            $serviceRating  = $data['service_rating'] ?? null;
+            $productRating  = $data['product_rating'] ?? null;
+            $deliveryRating = $data['delivery_rating'] ?? null;
+            $writtenFeedback = $data['service_feedback'] ?? null;
+            
+            $msg  = "⭐ <b>New Order Rating & Review!</b>\n━━━━━━━━━━━━━━\n";
+            if ($orderNumber) {
+                $msg .= "📋 <b>Order:</b> <code>" . htmlspecialchars($orderNumber) . "</code>\n";
+            }
+            $msg .= "👤 <b>Customer:</b> " . htmlspecialchars($clientName) . ($phoneNumber ? " (" . htmlspecialchars($phoneNumber) . ")" : "") . "\n━━━━━━━━━━━━━━\n";
+            $msg .= "🏆 <b>Service Quality:</b> " . ($serviceRating ? str_repeat("⭐", $serviceRating) . " ({$serviceRating}/5)" : "N/A") . "\n";
+            $msg .= "☕ <b>Product Quality:</b> " . ($productRating ? str_repeat("⭐", $productRating) . " ({$productRating}/5)" : "N/A") . "\n";
+            $msg .= "🛵 <b>Waiter Delivery & Response:</b> " . ($deliveryRating ? str_repeat("⭐", $deliveryRating) . " ({$deliveryRating}/5)" : "N/A") . "\n";
+            if (!empty($writtenFeedback)) {
+                $msg .= "━━━━━━━━━━━━━━\n💬 <b>Customer Comment:</b>\n<i>" . htmlspecialchars($writtenFeedback) . "</i>\n";
+            }
+            $msg .= "🕐 " . date('M j, g:i A');
+            
+            sendMessage(ADMIN_CHAT_ID, $msg);
+        }
+        
         clearUserState($chatId);
         
         $message = "<b>⭐ Thank You for Your Feedback!</b>\n\n" .
-                   "We truly appreciate you taking the time to share your experience.\n\n" .
+                   "We truly appreciate you taking the time to rate your experience.\n\n" .
                    "Your feedback helps us improve our coffee, food, and office delivery service.\n\n" .
                    "— Kaldis Coffee ECA Branch Team ☕";
         
         $keyboard = [
             'inline_keyboard' => [
-                [['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']],
-                [['text' => '👥 Join Community', 'url' => TELEGRAM_CHANNEL]]
+                [['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']]
             ]
         ];
         
@@ -694,7 +790,7 @@ function submitComplaint($chatId) {
             'type' => $tempData['complaint_type']
         ]);
         
-        notifyAdminFeedback($id, $tempData, 'complaint');
+        notifyAdminComplaint($id, $tempData);
         clearUserState($chatId);
         
         $message = "<b>📝 Complaint Submitted</b>\n\n" .
@@ -719,36 +815,27 @@ function submitComplaint($chatId) {
     }
 }
 
-function notifyAdminFeedback($id, $data, $type) {
+function notifyAdminComplaint($id, $data) {
     if (empty(ADMIN_CHAT_ID)) return;
     
-    if ($type === 'service') {
-        $stars = getStarDisplay($data['service_rating'] ?? 0);
-        $message = "<b>☕ New Service Feedback Received</b>\n\n" .
-                   "Feedback ID: <code>" . $id . "</code>\n" .
-                   "Rating: " . $stars . "\n" .
-                   "Feedback:\n" . ($data['service_feedback'] ?? 'No additional feedback') . "\n\n" .
-                   "Please review this feedback.";
-    } else {
-        $typeNames = [
-            'delivery' => 'Delivery Issue',
-            'product' => 'Product Quality',
-            'payment' => 'Payment Problem',
-            'technical' => 'Technical Issue',
-            'cancellation' => 'Order Cancellation'
-        ];
-        
-        $message = "<b>📝 New Complaint Received</b>\n\n" .
-                   "Complaint ID: <code>" . $id . "</code>\n" .
-                   "Type: " . $typeNames[$data['complaint_type']] . "\n" .
-                   "Details:\n" . htmlspecialchars($data['complaint_description']) . "\n\n";
-        
-        if (!empty($data['complaint_photo'])) {
-            $message .= "Photo: " . $data['complaint_photo'] . "\n\n";
-        }
-        
-        $message .= "Please review and respond to this complaint.";
+    $typeNames = [
+        'delivery' => 'Delivery Issue',
+        'product' => 'Product Quality',
+        'payment' => 'Payment Problem',
+        'technical' => 'Technical Issue',
+        'cancellation' => 'Order Cancellation'
+    ];
+    
+    $message = "<b>📝 New Complaint Received</b>\n\n" .
+               "Complaint ID: <code>" . $id . "</code>\n" .
+               "Type: " . ($typeNames[$data['complaint_type']] ?? $data['complaint_type']) . "\n" .
+               "Details:\n" . htmlspecialchars($data['complaint_description']) . "\n\n";
+    
+    if (!empty($data['complaint_photo'])) {
+        $message .= "Photo: " . $data['complaint_photo'] . "\n\n";
     }
+    
+    $message .= "Please review and respond to this complaint.";
     
     sendMessage(ADMIN_CHAT_ID, $message);
 }
@@ -756,7 +843,7 @@ function notifyAdminFeedback($id, $data, $type) {
 function showUserFeedback($chatId) {
     try {
         $stmt = db()->prepare("
-            SELECT id, service_rating, written_feedback, complaint_type, complaint_description, complaint_status, complaint_photo, created_at
+            SELECT id, service_rating, product_rating, delivery_rating, written_feedback, complaint_type, complaint_description, complaint_status, complaint_photo, created_at
             FROM feedback
             WHERE chat_id = ?
             ORDER BY created_at DESC
@@ -765,14 +852,14 @@ function showUserFeedback($chatId) {
         $feedbacks = $stmt->fetchAll();
         
         if (empty($feedbacks)) {
-            $message = "<b>📋 Your Feedback</b>\n\n" .
+            $message = "<b>📋 Your Feedback & Reviews</b>\n\n" .
                        "You haven't submitted any feedback or complaints yet.\n\n" .
-                       "Need help? Submit feedback or file a complaint:";
+                       "Need help? Submit a review or file a complaint:";
             
             $keyboard = [
                 'inline_keyboard' => [
                     [
-                        ['text' => '⭐ Rate Service', 'callback_data' => 'rate_service'],
+                        ['text' => '⭐ Rate Experience', 'callback_data' => 'rate_service'],
                         ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint']
                     ],
                     [
@@ -784,15 +871,16 @@ function showUserFeedback($chatId) {
             return;
         }
         
-        $message = "<b>📋 Your Feedback</b>\n\n";
+        $message = "<b>📋 Your Reviews & Feedback</b>\n\n";
         foreach ($feedbacks as $fb) {
-            if ($fb['service_rating']) {
-                $stars = getStarDisplay($fb['service_rating']);
-                $message .= "⭐ <b>Service Rating</b>\n";
-                $message .= "   Rating: " . $stars . "\n";
-                $message .= "   Date: " . date('M d, Y', strtotime($fb['created_at'])) . "\n";
+            if ($fb['service_rating'] || $fb['product_rating'] || $fb['delivery_rating']) {
+                $message .= "⭐ <b>Order Rating</b>\n";
+                if ($fb['service_rating'])  $message .= "   🏆 Service: " . getStarDisplay($fb['service_rating']) . " ({$fb['service_rating']}/5)\n";
+                if ($fb['product_rating'])  $message .= "   ☕ Product: " . getStarDisplay($fb['product_rating']) . " ({$fb['product_rating']}/5)\n";
+                if ($fb['delivery_rating']) $message .= "   🛵 Delivery: " . getStarDisplay($fb['delivery_rating']) . " ({$fb['delivery_rating']}/5)\n";
+                $message .= "   📅 Date: " . date('M d, Y', strtotime($fb['created_at'])) . "\n";
                 if (!empty($fb['written_feedback'])) {
-                    $message .= "   Comment: " . mb_substr($fb['written_feedback'], 0, 50) . (mb_strlen($fb['written_feedback']) > 50 ? '...' : '') . "\n";
+                    $message .= "   💬 Comment: " . mb_substr($fb['written_feedback'], 0, 60) . (mb_strlen($fb['written_feedback']) > 60 ? '...' : '') . "\n";
                 }
                 $message .= "\n";
             }
@@ -806,17 +894,13 @@ function showUserFeedback($chatId) {
                 $message .= "   Status: " . ucfirst($fb['complaint_status']) . "\n";
                 $message .= "   Date: " . date('M d, Y', strtotime($fb['created_at'])) . "\n";
                 $message .= "   " . mb_substr($fb['complaint_description'], 0, 50) . (mb_strlen($fb['complaint_description']) > 50 ? '...' : '') . "\n\n";
-                
-                if (!empty($fb['complaint_photo'])) {
-                    $message .= "   📷 Photo attached\n\n";
-                }
             }
         }
         
         $keyboard = [
             'inline_keyboard' => [
                 [
-                    ['text' => '⭐ Rate Service', 'callback_data' => 'rate_service'],
+                    ['text' => '⭐ Rate Experience', 'callback_data' => 'rate_service'],
                     ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint']
                 ],
                 [
@@ -833,123 +917,6 @@ function showUserFeedback($chatId) {
 }
 
 // ============================================================
-// SUBSCRIPTION SYSTEM
-// ============================================================
-
-function showSubscriptionOptions($chatId) {
-    $message = "<b>🔔 Manage Your Subscriptions</b>\n\n" .
-               "Choose what notifications you'd like to receive:";
-    
-    $keyboard = [
-        'inline_keyboard' => [
-            [
-                ['text' => '🎁 Special Offers', 'callback_data' => 'subscribe_offers'],
-                ['text' => '☕ New Products', 'callback_data' => 'subscribe_products']
-            ],
-            [
-                ['text' => '❌ Unsubscribe Offers', 'callback_data' => 'unsubscribe_offers'],
-                ['text' => '❌ Unsubscribe Products', 'callback_data' => 'unsubscribe_products']
-            ],
-            [
-                ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
-            ]
-        ]
-    ];
-    
-    sendMessage($chatId, $message, $keyboard);
-}
-
-function showUnsubscriptionOptions($chatId) {
-    $message = "<b>🔔 Unsubscribe from Notifications</b>\n\n" .
-               "Select which notifications you'd like to unsubscribe from:";
-    
-    $keyboard = [
-        'inline_keyboard' => [
-            [
-                ['text' => '❌ Unsubscribe Offers', 'callback_data' => 'unsubscribe_offers'],
-                ['text' => '❌ Unsubscribe Products', 'callback_data' => 'unsubscribe_products']
-            ],
-            [
-                ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
-            ]
-        ]
-    ];
-    
-    sendMessage($chatId, $message, $keyboard);
-}
-
-function handleSubscription($chatId, $type) {
-    try {
-        $stmt = db()->prepare("
-            INSERT INTO subscriptions (chat_id, notification_type, active, created_at)
-            VALUES (?, ?, TRUE, NOW())
-            ON DUPLICATE KEY UPDATE active = TRUE, updated_at = NOW()
-        ");
-        $stmt->execute([$chatId, $type]);
-        
-        logBotActivity($chatId, 'SUBSCRIBED', ['type' => $type]);
-        
-        $typeNames = [
-            'offers' => 'Special Offers',
-            'products' => 'New Products'
-        ];
-        
-        $message = "<b>🔔 Subscribed!</b>\n\n" .
-                   "You're now subscribed to " . $typeNames[$type] . " notifications.\n\n" .
-                   "You'll receive updates about " . strtolower($typeNames[$type]) . " directly in this chat.";
-        
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
-                ]
-            ]
-        ];
-        
-        sendMessage($chatId, $message, $keyboard);
-        
-    } catch (Exception $e) {
-        error_log("Subscription error: " . $e->getMessage());
-        sendMessage($chatId, "Error managing subscription. Please try again.");
-    }
-}
-
-function handleUnsubscription($chatId, $type) {
-    try {
-        $stmt = db()->prepare("
-            INSERT INTO subscriptions (chat_id, notification_type, active, created_at)
-            VALUES (?, ?, FALSE, NOW())
-            ON DUPLICATE KEY UPDATE active = FALSE, updated_at = NOW()
-        ");
-        $stmt->execute([$chatId, $type]);
-        
-        logBotActivity($chatId, 'UNSUBSCRIBED', ['type' => $type]);
-        
-        $typeNames = [
-            'offers' => 'Special Offers',
-            'products' => 'New Products'
-        ];
-        
-        $message = "<b>🔔 Unsubscribed</b>\n\n" .
-                   "You've unsubscribed from " . $typeNames[$type] . " notifications.";
-        
-        $keyboard = [
-            'inline_keyboard' => [
-                [
-                    ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
-                ]
-            ]
-        ];
-        
-        sendMessage($chatId, $message, $keyboard);
-        
-    } catch (Exception $e) {
-        error_log("Unsubscription error: " . $e->getMessage());
-        sendMessage($chatId, "Error managing subscription. Please try again.");
-    }
-}
-
-// ============================================================
 // MAINTENANCE MODE MESSAGES & MENUS
 // ============================================================
 function showMaintenanceMessage($chatId, $user) {
@@ -959,11 +926,9 @@ function showMaintenanceMessage($chatId, $user) {
                "We are not accepting orders at this time.\n" .
                "Please check back later!\n\n" .
                "However, you can still:\n" .
-               "⭐ Give us feedback\n" .
-               "ℹ️ Learn about us\n" .
-               "📢 Share with friends\n" .
+               "⭐ Give us feedback & reviews\n" .
                "📝 File a complaint\n" .
-               "🔔 Manage subscriptions\n\n" .
+               "❓ Request help\n\n" .
                "Thank you for choosing Kaldis Coffee - ECA Branch, " . htmlspecialchars($firstName) . " ☕";
     
     $keyboard = getMaintenanceKeyboard();
@@ -977,18 +942,8 @@ function getMaintenanceKeyboard() {
                 ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback']
             ],
             [
-                ['text' => '📢 Share Bot', 'callback_data' => 'show_share'],
-                ['text' => 'ℹ️ About Us', 'callback_data' => 'show_about']
-            ],
-            [
-                ['text' => '👥 Join Community', 'url' => TELEGRAM_CHANNEL],
+                ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint'],
                 ['text' => '❓ Help', 'callback_data' => 'show_help']
-            ],
-            [
-                ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint']
-            ],
-            [
-                ['text' => '🔔 Manage Subscriptions', 'callback_data' => 'subscribe']
             ]
         ]
     ];
@@ -1049,20 +1004,14 @@ function processUpdate($update) {
             // ALLOWED callbacks during maintenance
             $allowedCallbacks = [
                 'show_feedback',
-                'show_share',
-                'show_about',
                 'show_help',
                 'back_to_menu',
                 'file_complaint',
                 'my_feedback',
-                'subscribe',
-                'unsubscribe',
-                'subscribe_offers',
-                'subscribe_products',
-                'unsubscribe_offers',
-                'unsubscribe_products',
                 'rate_service',
                 'rate_service_1','rate_service_2','rate_service_3','rate_service_4','rate_service_5',
+                'rate_product_1','rate_product_2','rate_product_3','rate_product_4','rate_product_5',
+                'rate_delivery_1','rate_delivery_2','rate_delivery_3','rate_delivery_4','rate_delivery_5',
                 'skip_service_feedback'
             ];
             
@@ -1117,20 +1066,30 @@ function processUpdate($update) {
                 logBotActivity($chatId, 'BOT_MENU_FEEDBACK'); 
                 showFeedbackMenu($chatId); 
                 break;
-            case 'show_about': 
-                logBotActivity($chatId, 'BOT_MENU_ABOUT'); 
-                showAbout($chatId); 
-                break;
-            case 'show_share': 
-                logBotActivity($chatId, 'BOT_MENU_SHARE'); 
-                showShare($chatId); 
-                break;
             
-            // Feedback handling
+            // Feedback rating steps
             case 'rate_service':
                 logBotActivity($chatId, 'BOT_RATE_SERVICE');
                 startServiceRating($chatId);
                 break;
+            case 'rate_service_1': case 'rate_service_2': case 'rate_service_3': case 'rate_service_4': case 'rate_service_5':
+                $rating = (int)str_replace('rate_service_', '', $data);
+                handleServiceRatingStep($chatId, $rating);
+                break;
+            case 'rate_product_1': case 'rate_product_2': case 'rate_product_3': case 'rate_product_4': case 'rate_product_5':
+                $rating = (int)str_replace('rate_product_', '', $data);
+                handleProductRatingStep($chatId, $rating);
+                break;
+            case 'rate_delivery_1': case 'rate_delivery_2': case 'rate_delivery_3': case 'rate_delivery_4': case 'rate_delivery_5':
+                $rating = (int)str_replace('rate_delivery_', '', $data);
+                handleDeliveryRatingStep($chatId, $rating);
+                break;
+            case 'skip_service_feedback':
+                $state = getUserState($chatId);
+                $tempData = $state['temp_data'] ?? [];
+                saveServiceFeedback($chatId, $tempData);
+                break;
+            
             case 'file_complaint':
                 logBotActivity($chatId, 'BOT_FILE_COMPLAINT');
                 startComplaint($chatId);
@@ -1138,15 +1097,6 @@ function processUpdate($update) {
             case 'my_feedback':
                 logBotActivity($chatId, 'BOT_MY_FEEDBACK');
                 showUserFeedback($chatId);
-                break;
-            case 'rate_service_1': case 'rate_service_2': case 'rate_service_3': case 'rate_service_4': case 'rate_service_5':
-                $rating = (int)str_replace('rate_service_', '', $data);
-                handleServiceRating($chatId, $rating);
-                break;
-            case 'skip_service_feedback':
-                $state = getUserState($chatId);
-                $tempData = $state['temp_data'];
-                saveServiceFeedback($chatId, $tempData);
                 break;
             
             // Complaint handling
@@ -1167,28 +1117,6 @@ function processUpdate($update) {
                 break;
             case 'back_to_feedback':
                 showFeedbackMenu($chatId);
-                break;
-            
-            // Subscription handling
-            case 'subscribe':
-                logBotActivity($chatId, 'BOT_MENU_SUBSCRIBE');
-                showSubscriptionOptions($chatId);
-                break;
-            case 'unsubscribe':
-                logBotActivity($chatId, 'BOT_MENU_UNSUBSCRIBE');
-                showUnsubscriptionOptions($chatId);
-                break;
-            case 'subscribe_offers':
-                handleSubscription($chatId, 'offers');
-                break;
-            case 'subscribe_products':
-                handleSubscription($chatId, 'products');
-                break;
-            case 'unsubscribe_offers':
-                handleUnsubscription($chatId, 'offers');
-                break;
-            case 'unsubscribe_products':
-                handleUnsubscription($chatId, 'products');
                 break;
         }
         return;
@@ -1219,9 +1147,7 @@ function processUpdate($update) {
             '/orders' => '/myorders',
             '/order_status' => '/track',
             '/tracking' => '/track',
-            '/complaint' => '/complaints',
-            '/sub' => '/subscribe',
-            '/info' => '/about'
+            '/complaint' => '/complaints'
         ];
         $command = $commandAliases[$firstWord] ?? $firstWord;
         
@@ -1270,7 +1196,7 @@ function processUpdate($update) {
             }
             
             // ALLOWED commands during maintenance
-            $allowedCommands = ['/start', '/feedback', '/about', '/help', '/community', '/complaints', '/subscribe'];
+            $allowedCommands = ['/start', '/feedback', '/help', '/complaints'];
             
             if (in_array($command, $allowedCommands)) {
                 switch ($command) {
@@ -1283,21 +1209,9 @@ function processUpdate($update) {
                         logBotActivity($chatId, 'BOT_CMD_FEEDBACK_MAINTENANCE');
                         showFeedbackMenu($chatId);
                         break;
-                    case '/about':
-                        logBotActivity($chatId, 'BOT_CMD_ABOUT_MAINTENANCE');
-                        showAbout($chatId);
-                        break;
                     case '/help':
                         logBotActivity($chatId, 'BOT_CMD_HELP_MAINTENANCE');
                         showHelp($chatId);
-                        break;
-                    case '/community':
-                        logBotActivity($chatId, 'BOT_CMD_COMMUNITY_MAINTENANCE');
-                        showCommunityLink($chatId);
-                        break;
-                    case '/subscribe':
-                        logBotActivity($chatId, 'BOT_CMD_SUBSCRIBE_MAINTENANCE');
-                        showSubscriptionOptions($chatId);
                         break;
                 }
                 return;
@@ -1341,15 +1255,6 @@ function processUpdate($update) {
         } elseif ($command === '/feedback' || $command === '/complaints') {
             logBotActivity($chatId, 'BOT_CMD_FEEDBACK');
             showFeedbackMenu($chatId);
-        } elseif ($command === '/about') {
-            logBotActivity($chatId, 'BOT_CMD_ABOUT');
-            showAbout($chatId);
-        } elseif ($command === '/community') {
-            logBotActivity($chatId, 'BOT_CMD_COMMUNITY');
-            showCommunityLink($chatId);
-        } elseif ($command === '/subscribe') {
-            logBotActivity($chatId, 'BOT_CMD_SUBSCRIBE');
-            showSubscriptionOptions($chatId);
         } else {
             showMainMenu($chatId);
         }
@@ -1394,33 +1299,15 @@ function getMainKeyboard($chatId) {
                 ['text' => '🔍 Track Order', 'callback_data' => 'track_order']
             ],
             [
-                ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback']
+                ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback'],
+                ['text' => '📋 My Reviews', 'callback_data' => 'my_feedback']
             ],
             [
-                ['text' => '👥 Join Community', 'url' => TELEGRAM_CHANNEL],
-                ['text' => '📢 Share Bot', 'callback_data' => 'show_share']
-            ],
-            [
-                ['text' => 'ℹ️ About Us', 'callback_data' => 'show_about'],
+                ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint'],
                 ['text' => '❓ Help', 'callback_data' => 'show_help']
             ]
         ]
     ];
-    
-    // Add feedback button if enabled
-    if (ENABLE_COMPLAINTS) {
-        $keyboard['inline_keyboard'][] = [
-            ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint'],
-            ['text' => '📋 My Feedback', 'callback_data' => 'my_feedback']
-        ];
-    }
-    
-    // Add subscription button if enabled
-    if (NOTIFICATION_ENABLED && ENABLE_SUBSCRIPTIONS) {
-        $keyboard['inline_keyboard'][] = [
-            ['text' => '🔔 Manage Subscriptions', 'callback_data' => 'subscribe']
-        ];
-    }
     
     return $keyboard;
 }
@@ -1578,69 +1465,6 @@ function trackOrderByNumber($chatId, $orderNumber) {
 }
 
 // ============================================================
-// COMMUNITY & SHARE
-// ============================================================
-
-function showCommunityLink($chatId) {
-    $message = "<b>☕ Join Kaldis Coffee Community!</b>\n\n" .
-               "Stay updated with our latest ECA branch menu specials, breakfast combos, and announcements!\n\n" .
-               "• Daily office breakfast & lunch combos\n• Seasonal specialty coffees\n• Fresh bakery & pastries\n• Fast desk delivery updates\n\n" .
-               "Click below to join our Telegram channel:";
-    
-    $backText = MAINTENANCE_MODE ? '🔙 Back' : '🔙 Back to Menu';
-    $keyboard = [
-        'inline_keyboard' => [
-            [['text' => 'Join @KaldisCoffeeEthiopia', 'url' => TELEGRAM_CHANNEL]],
-            [['text' => $backText, 'callback_data' => 'back_to_menu']]
-        ]
-    ];
-    
-    sendMessage($chatId, $message, $keyboard);
-}
-
-function showShare($chatId) {
-    $message = "<b>☕ Share Kaldis Coffee with Colleagues!</b>\n\n" .
-               "Love getting fresh coffee and food delivered to your desk? Share it with colleagues in the UNECA compound!";
-    
-    $shareUrl = 'https://t.me/share/url?url=' . urlencode(TELEGRAM_CHANNEL) . '&text=' . urlencode("Order fresh coffee, breakfast, and meals delivered straight to your office desk from Kaldis Coffee - ECA Branch!");
-    
-    $backText = MAINTENANCE_MODE ? '🔙 Back' : '🔙 Back to Menu';
-    $keyboard = [
-        'inline_keyboard' => [
-            [['text' => '📤 Share with Colleagues', 'url' => $shareUrl]],
-            [['text' => $backText, 'callback_data' => 'back_to_menu']]
-        ]
-    ];
-    
-    sendMessage($chatId, $message, $keyboard);
-}
-
-// ============================================================
-// ABOUT US
-// ============================================================
-
-function showAbout($chatId) {
-    $message = "<b>☕ About Kaldis Coffee — ECA Branch</b>\n\n" .
-               "Kaldis Coffee is Ethiopia's premier coffee house chain. At our UNECA Branch in Addis Ababa, we are dedicated to serving UN staff, delegates, and guests with freshly prepared coffee, hot pastries, gourmet sandwiches, and treats delivered right to your office desk.\n\n" .
-               "<b>Our Mission</b>\nTo provide authentic Ethiopian coffee tradition, exceptional food quality, and ultra-convenient desk delivery inside the UNECA compound.\n\n" .
-               "<b>Our Menu</b>\n" .
-               "• ☕ Handcrafted Espresso & Macchiato\n• 🧋 Iced Frappes, Smoothies & Cold Drinks\n• 🥐 Fresh Butter Croissants & Danish Pastries\n• 🥪 Club Sandwiches, Burgers & Savory Meals\n• 🍰 Signature Celebration & Birthday Cakes\n\n" .
-               "<b>Office Delivery Promise</b>\n" .
-               "• Direct desk delivery across all ECA compound buildings\n• Fast preparation (15-25 mins)\n• Sealed, hot, and hygienic packaging\n• Pay at Desk or mobile banking options\n\n" .
-               "<b>Contact</b>\nPhone: " . SUPPORT_PHONE . "\nTelegram: @KaldisCoffeeEthiopia\nLocation: UNECA Compound, Addis Ababa";
-    
-    $backText = MAINTENANCE_MODE ? '🔙 Back' : '🔙 Back to Menu';
-    $keyboard = [
-        'inline_keyboard' => [
-            [['text' => '👥 Join Community', 'url' => TELEGRAM_CHANNEL]],
-            [['text' => $backText, 'callback_data' => 'back_to_menu']]
-        ]
-    ];
-    
-    sendMessage($chatId, $message, $keyboard);
-}
-
-// ============================================================
 // HELP & COMMANDS
 // ============================================================
 
@@ -1652,10 +1476,7 @@ function showHelp($chatId) {
                    "The following features are still available:\n\n" .
                    "<b>Available Now</b>\n" .
                    "⭐ /feedback - Give us feedback\n" .
-                   "ℹ️ /about - About Kaldis Coffee ECA\n" .
-                   "👥 /community - Join our channel\n" .
-                   "📝 /complaints - File a complaint\n" .
-                   "🔔 /subscribe - Manage notifications\n\n" .
+                   "📝 /complaints - File a complaint\n\n" .
                    "<b>Unavailable During Maintenance</b>\n" .
                    "🛒 /order - Start ordering coffee & food\n" .
                    "📋 /myorders - View orders\n" .
@@ -1679,9 +1500,6 @@ function showHelp($chatId) {
                    "/track - Track your delivery\n" .
                    "/feedback - Give feedback\n" .
                    "/complaints - File a complaint\n" .
-                   "/subscribe - Manage notifications\n" .
-                   "/about - About Kaldis Coffee ECA\n" .
-                   "/community - Join our channel\n" .
                    "/help - Show this help\n\n";
     }
     
@@ -1690,8 +1508,7 @@ function showHelp($chatId) {
     $keyboard = [
         'inline_keyboard' => [
             [
-                ['text' => '💬 Contact Support', 'url' => 'https://t.me/KaldisCoffeeEthiopia'],
-                ['text' => '👥 Join Community', 'url' => TELEGRAM_CHANNEL]
+                ['text' => '💬 Contact Support', 'url' => 'https://t.me/KaldisCoffeeEthiopia']
             ],
             [
                 ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']
@@ -1718,11 +1535,6 @@ function showAllCommands($chatId) {
                "/feedback - Give service rating or file complaint\n" .
                "/complaints - File a complaint (same as /feedback)\n" .
                "/help - Show help information\n\n" .
-               "<b>🔔 Notifications</b>\n" .
-               "/subscribe - Manage notification subscriptions\n\n" .
-               "<b>ℹ️ Information</b>\n" .
-               "/about - About Kaldis Coffee ECA Branch\n" .
-               "/community - Join our Telegram channel\n\n" .
                "<b>⚠️ During Maintenance</b>\n" .
                "Some commands may be unavailable during maintenance mode.\n" .
                "Use /help to see available features during maintenance.";
