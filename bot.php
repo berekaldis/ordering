@@ -233,6 +233,9 @@ function apiRequest($method, $params) {
 }
 
 function sendMessage($chatId, $text, $keyboard = null) {
+    if (empty($chatId)) {
+        return ['ok' => false, 'description' => 'Missing chat_id'];
+    }
     $params = [
         'chat_id' => $chatId,
         'text' => $text,
@@ -1037,7 +1040,7 @@ function processUpdate($update) {
     // ===== CALLBACK QUERIES =====
     if (isset($update['callback_query'])) {
         $cq = $update['callback_query'];
-        $chatId = $cq['message']['chat']['id'] ?? null;
+        $chatId = $cq['message']['chat']['id'] ?? ($cq['from']['id'] ?? null);
         $messageId = $cq['message']['message_id'] ?? null;
         $data = $cq['data'] ?? '';
         $fromId = $cq['from']['id'] ?? 0;
@@ -1171,7 +1174,7 @@ function processUpdate($update) {
     // ===== MESSAGES =====
     if (isset($update['message'])) {
         $message = $update['message'];
-        $chatId = $message['chat']['id'] ?? null;
+        $chatId = $message['chat']['id'] ?? ($message['from']['id'] ?? null);
         if (!$chatId) return;
 
         $user = $message['from'] ?? [];
