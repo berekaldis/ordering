@@ -384,8 +384,9 @@ function handleGetUserProfile($db) {
 // GET ORDER STATUS
 // ============================================================
 function handleGetOrderStatus($db) {
-    $on = clean($_GET['order_number'] ?? $_POST['order_number'] ?? '', 50);
-    $ci = clean($_GET['chat_id']      ?? $_POST['chat_id']      ?? '', 50);
+    $on    = clean($_GET['order_number'] ?? $_POST['order_number'] ?? '', 50);
+    $ci    = clean($_GET['chat_id']      ?? $_POST['chat_id']      ?? '', 50);
+    $phone = clean($_GET['phone']        ?? $_POST['phone']        ?? '', 30);
 
     if (empty($on)) {
         if (!empty($ci)) {
@@ -393,11 +394,12 @@ function handleGetOrderStatus($db) {
             $s->execute([$ci]);
             $r = $s->fetch(PDO::FETCH_ASSOC);
             if ($r) $on = $r['order_number'];
-        } elseif (!empty($phone)) {
+        }
+        if (empty($on) && !empty($phone)) {
             $pr = cleanPhone($phone);
             if ($pr['ok']) {
-                $s = $db->prepare("SELECT order_number FROM pre_orders WHERE phone_number = ? ORDER BY created_at DESC LIMIT 1");
-                $s->execute([$pr['intl']]);
+                $s = $db->prepare("SELECT order_number FROM pre_orders WHERE phone_number = ? OR phone_number = ? ORDER BY created_at DESC LIMIT 1");
+                $s->execute([$pr['intl'], $pr['local']]);
                 $r = $s->fetch(PDO::FETCH_ASSOC);
                 if ($r) $on = $r['order_number'];
             }
@@ -414,16 +416,13 @@ function handleGetOrderStatus($db) {
         'Confirmed' => '✅ Order Confirmed',
         'Out for Delivery' => '🛵 Out for Delivery',
         'Delivered' => '☕ Delivered',
-        'Cancelled' => '❌ Cancelled'
+        'Cancelled' => '❌ Cancelled',
+        'Rejected' => '❌ Rejected'
     ];
 
-    $sql    = "SELECT id, order_number, client_name, phone_number, status, total_amount, delivery_address, delivery_time_slot, delivery_date, created_at FROM pre_orders WHERE order_number = ?";
-    $params = [$on];
-    if (!empty($ci)) { $sql .= " AND chat_id = ?"; $params[] = $ci; }
-    $sql .= " LIMIT 1";
-
-    $stmt  = $db->prepare($sql);
-    $stmt->execute($params);
+    $sql  = "SELECT id, order_number, client_name, phone_number, status, rejection_reason, total_amount, delivery_address, delivery_time_slot, delivery_date, created_at FROM pre_orders WHERE order_number = ? LIMIT 1";
+    $stmt = $db->prepare($sql);
+    $stmt->execute([$on]);
     $order = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$order) {

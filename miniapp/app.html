@@ -299,9 +299,10 @@
         .ig input:focus+label,.ig input:not(:placeholder-shown)+label{top:-8px;transform:none;font-size:10px;font-weight:800;color:var(--pm);z-index:5}
         .ii{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--tx3);transition:color .2s;pointer-events:none}
         .ig input:focus~.ii{color:var(--pm)}
-        .php{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:800;color:var(--pm);z-index:3}
-        .phw input{padding-left:60px;letter-spacing:.5px}
-        .phw label{left:60px}
+        .php{position:absolute;left:14px;top:50%;transform:translateY(-50%);font-size:14px;font-weight:800;color:var(--pm);z-index:3;letter-spacing:0.5px}
+        .phw input{padding-left:72px!important;letter-spacing:.5px}
+        .phw label{left:72px!important}
+        .phw input:focus+label,.phw input:not(:placeholder-shown)+label{left:14px!important;top:-9px;transform:none;font-size:10px;font-weight:800;color:var(--pm);z-index:5;background:#fff;padding:0 4px}
         .phc{position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:11px;font-weight:700;color:var(--tx3);transition:color .2s}
         .phc.ok{color:var(--pm);font-weight:800}
 
@@ -555,9 +556,13 @@
 <div id="trackingM" class="cov" onclick="if(event.target===this)closeOrderTracking()">
     <div class="csh" style="max-height:85vh;display:flex;flex-direction:column;overflow-y:auto">
         <div class="chdl"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
             <h3 style="font-size:16px;font-weight:900;color:var(--pri)">🚚 Live Order Tracking</h3>
             <button onclick="closeOrderTracking()" style="background:#F3F4F6;border:none;width:30px;height:30px;border-radius:50%;font-size:14px;font-weight:700;cursor:pointer">✕</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:12px">
+            <input type="text" id="trackSearchInput" placeholder="Order Number (e.g. KLD-00001)" style="flex:1;padding:10px 12px;border:1.5px solid var(--bd);border-radius:10px;font-size:13px;font-weight:600;outline:none" onkeydown="if(event.key==='Enter')fetchLiveOrderStatus(this.value.trim())">
+            <button onclick="fetchLiveOrderStatus(document.getElementById('trackSearchInput').value.trim())" style="padding:10px 16px;background:var(--pm);color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer">Track</button>
         </div>
         <div id="trackingContent">
             <!-- Rendered dynamically -->
@@ -1780,20 +1785,30 @@ async function fetchLiveOrderStatus(orderNum) {
     var container = document.getElementById('trackingContent');
     if(!container) return;
     try {
-        var resp = await fetch('api.php?action=get_order_status&order_number=' + encodeURIComponent(orderNum) + (S.chatId ? '&chat_id=' + encodeURIComponent(S.chatId) : ''));
+        var queryParts = [];
+        if(orderNum) queryParts.push('order_number=' + encodeURIComponent(orderNum));
+        if(S.chatId)  queryParts.push('chat_id=' + encodeURIComponent(S.chatId));
+        if(S.phone)   queryParts.push('phone=' + encodeURIComponent(S.phone));
+
+        var url = 'api.php?action=get_order_status' + (queryParts.length ? '&' + queryParts.join('&') : '');
+        var resp = await fetch(url);
         var data = await resp.json();
+        
         if(!data.success || !data.order) {
-            container.innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx3)">Order not found or update pending.</div>';
+            container.innerHTML = '<div style="text-align:center;padding:24px 16px;color:var(--tx2);background:#FFF;border:1px solid var(--bd);border-radius:14px"><div style="font-size:32px;margin-bottom:6px">📦</div><div style="font-size:13px;font-weight:700;color:var(--pri);margin-bottom:4px">' + esc(data.message || 'No active order found.') + '</div><div style="font-size:11px;color:var(--tx3)">Enter your Order Number above (e.g. KLD-00001) or tap Order Now to place a new order.</div></div>';
             return;
         }
         var order = data.order;
         var st = order.status || 'Pending';
+
+        var sInput = document.getElementById('trackSearchInput');
+        if(sInput && !sInput.value && order.order_number) sInput.value = order.order_number;
         
         // AUTOMATIC FEEDBACK POPUP WHEN DELIVERED AND NOT RATED
-        if(st === 'Delivered' && !order.is_rated && !_popupAutoOpened[orderNum]) {
-            _popupAutoOpened[orderNum] = true;
+        if(st === 'Delivered' && !order.is_rated && !_popupAutoOpened[order.order_number]) {
+            _popupAutoOpened[order.order_number] = true;
             setTimeout(function(){
-                openFeedbackPopup(orderNum);
+                openFeedbackPopup(order.order_number);
             }, 600);
         }
 
@@ -1802,7 +1817,8 @@ async function fetchLiveOrderStatus(orderNum) {
             'Confirmed': { idx: 2, label: 'Order Confirmed', color: '#2563EB', bg: '#EFF6FF', icon: '✅' },
             'Out for Delivery': { idx: 3, label: 'Out for Delivery', color: '#7C3AED', bg: '#F3E8FF', icon: '🛵' },
             'Delivered': { idx: 4, label: 'Delivered to Desk', color: '#166534', bg: '#F0FDF4', icon: '☕' },
-            'Cancelled': { idx: 0, label: 'Order Cancelled', color: '#DC2626', bg: '#FEF2F2', icon: '❌' }
+            'Cancelled': { idx: 0, label: 'Order Cancelled', color: '#DC2626', bg: '#FEF2F2', icon: '❌' },
+            'Rejected': { idx: 0, label: 'Order Rejected', color: '#DC2626', bg: '#FEF2F2', icon: '❌' }
         };
         var currentInfo = statusMap[st] || statusMap['Pending'];
         var currentIdx = currentInfo.idx;
@@ -1812,6 +1828,13 @@ async function fetchLiveOrderStatus(orderNum) {
         html += '<div style="font-size:16px;font-weight:900;color:' + currentInfo.color + '">' + currentInfo.label + '</div>';
         html += '<div style="font-size:11px;color:var(--tx2);margin-top:2px">Order: <b>' + esc(order.order_number) + '</b></div>';
         html += '</div>';
+
+        if(st === 'Rejected' && order.rejection_reason) {
+            html += '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;padding:12px;margin-bottom:14px;color:#991B1B;font-size:12px;line-height:1.4">';
+            html += '<div style="font-weight:800;margin-bottom:4px">❌ Reason for Rejection:</div>';
+            html += esc(order.rejection_reason);
+            html += '</div>';
+        }
 
         if(st !== 'Cancelled') {
             html += '<div style="background:#FFF;border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:14px">';
