@@ -308,7 +308,10 @@ DROP TABLE IF EXISTS `feedback`;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `feedback` (
   `id` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `chat_id` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `order_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `chat_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `phone_number` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `client_name` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `branch_id` int DEFAULT '1',
   `delivery_rating` tinyint DEFAULT NULL,
   `product_rating` tinyint DEFAULT NULL,
@@ -321,6 +324,7 @@ CREATE TABLE `feedback` (
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_chat_id` (`chat_id`),
+  KEY `idx_order_number` (`order_number`),
   KEY `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
