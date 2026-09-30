@@ -72,12 +72,51 @@ if (isset($_GET['view_log'])) {
     exit;
 }
 
+function syncBotMenuButton($targetUrl = null) {
+    static $synced = false;
+    if ($synced) return;
+    $synced = true;
+    
+    $urlToUse = $targetUrl ?: (defined('MINI_APP_URL') ? MINI_APP_URL : 'https://ordering.kaldisbunnaet.com/eca/miniapp/app.html');
+    if (strpos($urlToUse, 'http://') === 0) {
+        $urlToUse = 'https://' . substr($urlToUse, 7);
+    }
+    
+    $token = defined('BOT_TOKEN') ? BOT_TOKEN : (defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8');
+    $apiUrl = 'https://api.telegram.org/bot' . $token . '/setChatMenuButton';
+    
+    $payload = json_encode([
+        'menu_button' => [
+            'type' => 'web_app',
+            'text' => '☕ Order Now',
+            'web_app' => [
+                'url' => $urlToUse
+            ]
+        ]
+    ]);
+    
+    try {
+        $ch = curl_init($apiUrl);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $payload,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 4,
+            CURLOPT_SSL_VERIFYPEER => false
+        ]);
+        curl_exec($ch);
+        curl_close($ch);
+    } catch (Exception $e) {}
+}
+
 function loadBotSettings() {
     $fallbackToken = defined('DEFAULT_BOT_TOKEN') ? DEFAULT_BOT_TOKEN : '8575284682:AAGbp6ZDaj1T2vPk1GSRrFC7rXCPbO8vyX8';
+    $defaultMiniAppUrl = defined('DEFAULT_MINI_APP_URL') ? DEFAULT_MINI_APP_URL : (SITE_URL . '/miniapp/app.html');
     $defaults = [
         'bot_token' => $fallbackToken,
         'admin_chat_id' => '',
-        'mini_app_url' => SITE_URL . '/miniapp/app.html',
+        'mini_app_url' => $defaultMiniAppUrl,
         'support_phone' => '0911000000',
         'telegram_channel' => 'https://t.me/KaldisCoffeeEthiopia',
         'maintenance_mode' => 'false',
@@ -104,9 +143,13 @@ function loadBotSettings() {
             }
         }
         
-        // Ensure mini app URL uses HTTPS if not localhost
-        if (strpos($defaults['mini_app_url'], 'http://') === 0) {
-            $defaults['mini_app_url'] = 'https://' . substr($defaults['mini_app_url'], 7);
+        // Auto-fix outdated or non-HTTPS URLs
+        if (strpos($defaults['mini_app_url'], 'loniagro') !== false || strpos($defaults['mini_app_url'], 'localhost') !== false || strpos($defaults['mini_app_url'], 'http://') === 0) {
+            $defaults['mini_app_url'] = 'https://ordering.kaldisbunnaet.com/eca/miniapp/app.html';
+            try {
+                $upStmt = db()->prepare("UPDATE settings SET `value` = ? WHERE `key` = 'mini_app_url'");
+                $upStmt->execute([$defaults['mini_app_url']]);
+            } catch (Exception $e) {}
         }
     } catch (Exception $e) {
         error_log("Failed to load bot settings: " . $e->getMessage());
@@ -121,11 +164,14 @@ $botToken = !empty($settings['bot_token']) ? $settings['bot_token'] : (defined('
 define('BOT_TOKEN', $botToken);
 define('API_URL', 'https://api.telegram.org/bot' . BOT_TOKEN);
 
-$miniAppUrl = $settings['mini_app_url'] ?: SITE_URL . '/miniapp/app.html';
+$miniAppUrl = $settings['mini_app_url'] ?: 'https://ordering.kaldisbunnaet.com/eca/miniapp/app.html';
 if (strpos($miniAppUrl, 'http://') === 0) {
     $miniAppUrl = 'https://' . substr($miniAppUrl, 7);
 }
 define('MINI_APP_URL', $miniAppUrl);
+
+// Sync native Telegram Bot Menu Button
+syncBotMenuButton(MINI_APP_URL);
 
 define('SUPPORT_PHONE', $settings['support_phone']);
 define('TELEGRAM_CHANNEL', $settings['telegram_channel']);

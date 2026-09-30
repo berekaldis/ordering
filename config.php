@@ -47,16 +47,20 @@ define('BRANCH_NAME', 'ECA Branch');
 
 // Auto-detect SITE_URL if not provided
 if (!defined('SITE_URL')) {
-    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443)) ? "https://" : "http://";
-    $host = !empty($_SERVER['HTTP_HOST']) ? $_SERVER['HTTP_HOST'] : 'localhost';
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (!empty($_SERVER['SERVER_PORT']) && $_SERVER['SERVER_PORT'] == 443) || (!empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https');
+    $protocol = $isHttps ? "https://" : "https://";
+    $host = (!empty($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== 'localhost' && $_SERVER['HTTP_HOST'] !== '127.0.0.1') ? $_SERVER['HTTP_HOST'] : 'ordering.kaldisbunnaet.com';
     $scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
     if ($scriptDir === '.' || $scriptDir === '/' || $scriptDir === '\\') {
         $scriptDir = '';
     }
     $rootPath = preg_replace('#/(admin|miniapp|uploads|api|includes).*$#', '', $scriptDir);
     $rootPath = rtrim($rootPath, '/.\\');
-    define('SITE_URL', $protocol . $host . ($rootPath ? '/' . ltrim($rootPath, '/') : ''));
+    $detectedUrl = $protocol . $host . ($rootPath ? '/' . ltrim($rootPath, '/') : '/eca');
+    define('SITE_URL', rtrim($detectedUrl, '/'));
 }
+
+define('DEFAULT_MINI_APP_URL', 'https://ordering.kaldisbunnaet.com/eca/miniapp/app.html');
 
 define('BASE_PATH', dirname(__DIR__));
 define('UPLOAD_DIR', __DIR__ . '/uploads/slips/');
