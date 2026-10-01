@@ -127,21 +127,28 @@ $logoUrl = getLogoUrl() ?: 'uploads/logo/kaldis-logo.png';
                 <!-- Action Buttons -->
                 <div class="space-y-3 pt-2">
                     <a href="miniapp/app.html" 
-                       class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-700 hover:to-amber-700 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-amber-600/25 hover:shadow-amber-600/35 transition-all text-sm">
-                        <i class="fas fa-mug-hot"></i> Start Office Order Now
+                       class="flex items-center justify-center gap-2.5 w-full bg-gradient-to-r from-amber-600 via-amber-500 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white py-3.5 rounded-2xl font-extrabold shadow-lg shadow-amber-600/30 hover:shadow-amber-600/40 hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 text-sm tracking-wide">
+                        <i class="fas fa-mug-hot text-base animate-bounce"></i> Start Office Order Now
                     </a>
                     
-                    <a href="https://t.me/EcaOrdering_bot" 
-                       class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200/80 text-slate-800 py-3 rounded-xl font-semibold border border-slate-200 transition text-sm"
-                       target="_blank">
-                        <i class="fab fa-telegram text-sky-500"></i> Open with Telegram Bot (@EcaOrdering_bot)
-                    </a>
+                    <div class="grid grid-cols-2 gap-3">
+                        <a href="tel:0992098459" 
+                           class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 px-3 rounded-2xl font-bold shadow-md shadow-emerald-600/20 hover:shadow-emerald-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-xs sm:text-sm">
+                            <i class="fas fa-phone-alt text-emerald-200 animate-pulse"></i> Call ECA Branch
+                        </a>
+                        
+                        <a href="https://t.me/EcaOrdering_bot" 
+                           class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white py-3 px-3 rounded-2xl font-bold shadow-md shadow-sky-500/20 hover:shadow-sky-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-xs sm:text-sm"
+                           target="_blank">
+                            <i class="fab fa-telegram text-sky-100 text-base"></i> Telegram Bot
+                        </a>
+                    </div>
                 </div>
                 
                 <!-- Footer Info -->
-                <div class="pt-4 border-t border-stone-100 text-center text-xs text-stone-400 space-y-1">
+                <div class="pt-4 border-t border-stone-100 text-center text-xs text-stone-400 space-y-1.5">
                     <p>© <?php echo date('Y'); ?> Kaldis Coffee - ECA Branch. All rights reserved.</p>
-                    <p class="text-[11px]">📍 UNECA Compound, Menelik II Ave, Addis Ababa | 📞 0992098459</p>
+                    <p class="text-[11px] text-stone-500 font-medium">📍 UNECA Compound, Menelik II Ave, Addis Ababa | 📞 <a href="tel:0992098459" class="text-amber-700 font-bold hover:underline">0992098459</a></p>
                 </div>
             </div>
         </div>

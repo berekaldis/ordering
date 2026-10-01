@@ -186,6 +186,7 @@ try {
 // HANDLERS
 // ============================================================
 function handleGetProducts($db) {
+    header('Cache-Control: public, max-age=60, stale-while-revalidate=120');
     $stmt = $db->query("
         SELECT id, product_name, product_name_am, unit_price, image, description, category, sort_order
         FROM dairy_products

@@ -464,10 +464,23 @@
 <body>
 
 <div id="tgBlock">
-    <div style="width:56px;height:56px;background:var(--p50);border-radius:16px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;font-size:24px">&#x2615;</div>
-    <h2 style="font-size:16px;font-weight:800;margin-bottom:4px">Kaldis Coffee — ECA Branch</h2>
-    <p style="font-size:11px;color:var(--tx2);line-height:1.5;max-width:260px;margin-bottom:12px">Office Desk Delivery inside UNECA Compound. Open via Telegram or order directly in your browser.</p>
-    <button onclick="continueInWebMode()" style="padding:10px 20px;border-radius:12px;background:linear-gradient(135deg,var(--pri),var(--pm));border:none;color:#fff;font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(36,20,14,.25)">&#x2615; Continue to Order</button>
+    <div style="width:64px;height:64px;background:var(--p50);border:1px solid var(--p100);border-radius:20px;display:flex;align-items:center;justify-content:center;margin-bottom:12px;font-size:28px;box-shadow:0 8px 20px rgba(180,83,9,0.12)">☕</div>
+    <h2 style="font-size:17px;font-weight:900;margin-bottom:4px;color:var(--pri)">Kaldis Coffee — ECA Branch</h2>
+    <p style="font-size:11px;color:var(--tx2);line-height:1.5;max-width:270px;margin-bottom:14px">Office Desk Delivery inside UNECA Compound. Order directly in your browser or via Telegram Bot.</p>
+    
+    <div style="display:flex;flex-direction:column;gap:8px;width:100%;max-width:280px">
+        <button onclick="continueInWebMode()" style="padding:12px 20px;border-radius:14px;background:linear-gradient(135deg,var(--pri),var(--pm));border:none;color:#fff;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 4px 14px rgba(36,20,14,.25);display:flex;align-items:center;justify-content:center;gap:6px">
+            <span>☕</span> <span>Start Order Now</span>
+        </button>
+        <div style="display:flex;gap:8px">
+            <a href="tel:0992098459" style="flex:1;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:11px;font-weight:700;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 3px 10px rgba(5,150,105,0.2)">
+                <span>📞</span> <span>Call ECA</span>
+            </a>
+            <a href="https://t.me/EcaOrdering_bot" target="_blank" style="flex:1;padding:10px 12px;border-radius:12px;background:linear-gradient(135deg,#0284C7,#0369A1);color:#fff;font-size:11px;font-weight:700;text-decoration:none;display:flex;align-items:center;justify-content:center;gap:5px;box-shadow:0 3px 10px rgba(2,132,199,0.2)">
+                <span>✈️</span> <span>Telegram</span>
+            </a>
+        </div>
+    </div>
 </div>
 
 <div id="appRoot">
@@ -1466,6 +1479,11 @@ function rProds(){
     }
 }
 
+function clearBldgSearch(){
+    S.bldgSearchQuery = '';
+    rLoc();
+}
+
 function rLoc(){
     _prodsActive=false;
     var m=document.getElementById('cont');
@@ -1477,9 +1495,36 @@ function rLoc(){
     body+='<div><div class="pay-alert-text">Fast Desk Delivery inside UNECA</div><div class="pay-alert-sub">Select your building, floor and desk for swift office delivery</div></div>';
     body+='</div>';
 
-    body+='<div style="display:flex;flex-direction:column;gap:7px">';
-    for(var i=0;i<locations.length;i++){
-        var loc=locations[i];
+    // BUILDING SEARCH BAR
+    var bq = (S.bldgSearchQuery || '').toLowerCase().trim();
+    body+='<div class="search-wrap" style="margin-bottom:10px">';
+    body+='<div class="search-box'+(bq?' has-value':'')+'">';
+    body+='<svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>';
+    body+='<input type="text" id="bldgSearchInput" class="search-input" placeholder="🔍 Search ECA building (e.g. Africa Hall, Secretariat)..." value="'+esc(S.bldgSearchQuery||'')+'" autocomplete="off">';
+    if(bq){
+        body+='<button class="search-clear visible" onclick="clearBldgSearch()">✕</button>';
+    }
+    body+='</div></div>';
+
+    var filteredLocs = locations.filter(function(loc){
+        if(!bq) return true;
+        var nEn = (loc.name || '').toLowerCase();
+        var nAm = (loc.name_am || '').toLowerCase();
+        var code = (loc.location_code || '').toLowerCase();
+        return nEn.indexOf(bq) !== -1 || nAm.indexOf(bq) !== -1 || code.indexOf(bq) !== -1;
+    });
+
+    if(filteredLocs.length === 0){
+        body+='<div style="text-align:center;padding:20px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:14px;color:#92400E;margin-bottom:10px">';
+        body+='<div style="font-size:24px;margin-bottom:4px">🏢❓</div>';
+        body+='<div style="font-size:12px;font-weight:700">No ECA building matched "'+esc(S.bldgSearchQuery)+'"</div>';
+        body+='<div style="font-size:10px;margin-top:2px">Select "Other Building / Location" below or clear your search to browse all buildings.</div>';
+        body+='</div>';
+    }
+
+    body+='<div style="display:flex;flex-direction:column;gap:7px" id="bldgList">';
+    for(var i=0;i<filteredLocs.length;i++){
+        var loc=filteredLocs[i];
         var sel=(S.location&&S.location.id===loc.id);
         var nm=S.lang==='am'?(loc.name_am||loc.name):loc.name;
         body+='<div onclick="selLoc(\''+esc(loc.id)+'\')" class="card sc'+(sel?' on':'')+'"><div class="si" style="background:'+(sel?'var(--pm)':'var(--p50)')+';color:'+(sel?'#fff':'var(--pm)')+'">'+(loc.icon||'🏢')+'</div><span style="flex:1;font-size:13px;font-weight:700">'+esc(nm)+'</span><div class="sch">'+(sel?'<svg width="10" height="10" fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>':'')+'</div></div>';
@@ -1496,6 +1541,15 @@ function rLoc(){
     body+='</div></div>';
 
     m.innerHTML=wrap(2,top,body,'');
+
+    var bi = document.getElementById('bldgSearchInput');
+    if(bi){
+        bi.addEventListener('input', function(e){
+            S.bldgSearchQuery = e.target.value;
+            rLoc();
+        });
+        if(bq) bi.focus();
+    }
 }
 
 function rAddr(){
@@ -1754,7 +1808,7 @@ function rSuccess(){
     h+='</div>';
 
     // SUPPORT CONTACT BOX
-    h+='<div style="width:100%;max-width:320px;background:var(--p50);border:1px solid var(--p100);border-radius:14px;padding:12px;margin-bottom:12px"><p style="font-size:11px;font-weight:600;color:var(--pri);margin-bottom:6px">'+t('help')+'</p><div style="display:flex;gap:8px"><a href="tel:0992098459" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:9px;background:#fff;color:var(--pm);font-size:11px;font-weight:700;text-decoration:none">📞 '+t('call')+'</a><a href="https://t.me/ECAKB" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:9px;background:#fff;color:var(--pm);font-size:11px;font-weight:700;text-decoration:none">💬 '+t('tg')+'</a></div></div>';
+    h+='<div style="width:100%;max-width:320px;background:var(--p50);border:1px solid var(--p100);border-radius:14px;padding:12px;margin-bottom:12px"><p style="font-size:11px;font-weight:700;color:var(--pri);margin-bottom:8px;text-align:center">'+t('help')+'</p><div style="display:flex;gap:8px"><a href="tel:0992098459" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:11px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:11px;font-weight:700;text-decoration:none;box-shadow:0 3px 10px rgba(5,150,105,0.2)">📞 '+t('call')+'</a><a href="https://t.me/ECAKB" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:11px;background:linear-gradient(135deg,#0284C7,#0369A1);color:#fff;font-size:11px;font-weight:700;text-decoration:none;box-shadow:0 3px 10px rgba(2,132,199,0.2)">💬 '+t('tg')+'</a></div></div>';
     h+='</div>';
     m.innerHTML=h;
 }
@@ -2190,8 +2244,26 @@ function initApp(){
 }
 
 async function loadInitialData(){
+    // Instant zero-delay load from local cache if available
     try{
-        S.loading=true;render();
+        var cProds = localStorage.getItem('kld_cache_prods');
+        var cLocs = localStorage.getItem('kld_cache_locs');
+        var cPay = localStorage.getItem('kld_cache_pay');
+        if(cProds && cLocs && cPay){
+            products = JSON.parse(cProds);
+            locations = JSON.parse(cLocs);
+            payMethods = JSON.parse(cPay);
+            S.loading = false;
+            render(); // Immediate zero-latency UI render!
+        }
+    }catch(e){}
+
+    if(!products || !products.length){
+        S.loading = true;
+        render();
+    }
+
+    try{
         var fetchTasks=[
             fetch('api.php?action=get_products'),
             fetch('api.php?action=get_locations'),
@@ -2205,9 +2277,19 @@ async function loadInitialData(){
         var pd=await results[0].json();
         var ld=await results[1].json();
         var pmd=await results[2].json();
-        products=pd.products||[];
-        locations=ld.locations||[];
-        payMethods=pmd.payment_methods||[];
+        
+        if(pd.products && pd.products.length){
+            products = pd.products;
+            try{ localStorage.setItem('kld_cache_prods', JSON.stringify(products)); }catch(e){}
+        }
+        if(ld.locations && ld.locations.length){
+            locations = ld.locations;
+            try{ localStorage.setItem('kld_cache_locs', JSON.stringify(locations)); }catch(e){}
+        }
+        if(pmd.payment_methods && pmd.payment_methods.length){
+            payMethods = pmd.payment_methods;
+            try{ localStorage.setItem('kld_cache_pay', JSON.stringify(payMethods)); }catch(e){}
+        }
 
         if(results[3]){
             try{
@@ -2236,7 +2318,9 @@ async function loadInitialData(){
     }catch(e){
         console.error('loadInitialData error:',e);
         S.loading=false;
-        toast('Failed to load data. Check connection.','error');
+        if(!products || !products.length){
+            toast('Failed to load data. Check connection.','error');
+        }
     }
 }
 

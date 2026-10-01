@@ -990,9 +990,6 @@ function getMaintenanceKeyboard() {
     return [
         'inline_keyboard' => [
             [
-                ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback']
-            ],
-            [
                 ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint'],
                 ['text' => '❓ Help', 'callback_data' => 'show_help']
             ]
@@ -1543,10 +1540,6 @@ function getMainKeyboard($chatId) {
                 ['text' => '🔍 Track Order', 'web_app' => ['url' => $trackAppUrl]]
             ],
             [
-                ['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback'],
-                ['text' => '📋 My Reviews', 'callback_data' => 'my_feedback']
-            ],
-            [
                 ['text' => '📝 File Complaint', 'callback_data' => 'file_complaint'],
                 ['text' => '❓ Help', 'callback_data' => 'show_help']
             ]
@@ -1604,7 +1597,7 @@ function showUserOrders($chatId) {
         $keyboard = [
             'inline_keyboard' => [
                 [['text' => '🛒 Place New Order', 'web_app' => ['url' => MINI_APP_URL . '?chat_id=' . $chatId]]],
-                [['text' => '⭐ Give Feedback', 'callback_data' => 'show_feedback'], ['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']]
+                [['text' => '🔙 Back to Menu', 'callback_data' => 'back_to_menu']]
             ]
         ];
         sendMessage($chatId, $message, $keyboard);
@@ -1742,7 +1735,6 @@ function showHelp($chatId) {
                    "/order - Start ordering\n" .
                    "/myorders - View orders\n" .
                    "/track - Track your delivery\n" .
-                   "/feedback - Give feedback\n" .
                    "/complaints - File a complaint\n" .
                    "/help - Show this help\n\n";
     }

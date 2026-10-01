@@ -49,19 +49,35 @@ if (isset($_GET['action'])) {
         if (empty($phone)) { echo json_encode(['success' => false, 'message' => 'Phone required']); exit; }
 
         try {
-            $stmt = db()->prepare("
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            if (strpos($digits, '251') === 0) $digits = substr($digits, 3);
+            if (strpos($digits, '0') === 0) $digits = substr($digits, 1);
+
+            $variants = array_values(array_filter(array_unique([
+                $phone, $digits, '0' . $digits, '+251' . $digits, '251' . $digits
+            ])));
+
+            $placeholders = implode(',', array_fill(0, count($variants), '?'));
+            $params = $variants;
+
+            $sql = "
                 SELECT po.order_number, po.status, po.total_amount, po.payment_method, po.delivery_date, po.created_at, 
                        loc.name as location_name
                 FROM pre_orders po
                 LEFT JOIN delivery_locations loc ON po.delivery_location_id = loc.id
-                WHERE po.phone_number = ?
-                ORDER BY po.created_at DESC
-                LIMIT 50
-            ");
-            $stmt->execute([$phone]);
+                WHERE (po.phone_number IN ($placeholders)";
+
+            if (!empty($digits)) {
+                $sql .= " OR po.phone_number LIKE ?";
+                $params[] = '%' . $digits;
+            }
+            $sql .= ") ORDER BY po.created_at DESC LIMIT 50";
+
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
             $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
             echo json_encode(['success' => true, 'orders' => $orders]);
-        } catch (Exception $e) { echo json_encode(['success' => false, 'message' => 'Database error']); }
+        } catch (Exception $e) { echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]); }
         exit;
     }
 
@@ -71,20 +87,36 @@ if (isset($_GET['action'])) {
         if (empty($phone)) { echo json_encode(['success' => false, 'message' => 'Phone required']); exit; }
 
         try {
-            // Get customer info
-            $stmt = db()->prepare("
+            $digits = preg_replace('/[^0-9]/', '', $phone);
+            if (strpos($digits, '251') === 0) $digits = substr($digits, 3);
+            if (strpos($digits, '0') === 0) $digits = substr($digits, 1);
+
+            $variants = array_values(array_filter(array_unique([
+                $phone, $digits, '0' . $digits, '+251' . $digits, '251' . $digits
+            ])));
+
+            $placeholders = implode(',', array_fill(0, count($variants), '?'));
+            $params = $variants;
+
+            $sql = "
                 SELECT phone_number, MAX(client_name) as client_name, MAX(chat_id) as chat_id,
                        COUNT(*) as order_count, SUM(total_amount) as total_spent,
                        MIN(created_at) as first_order, MAX(created_at) as last_order
                 FROM pre_orders
-                WHERE phone_number = ?
-                GROUP BY phone_number
-            ");
-            $stmt->execute([$phone]);
+                WHERE (phone_number IN ($placeholders)";
+
+            if (!empty($digits)) {
+                $sql .= " OR phone_number LIKE ?";
+                $params[] = '%' . $digits;
+            }
+            $sql .= ") GROUP BY phone_number ORDER BY order_count DESC LIMIT 1";
+
+            $stmt = db()->prepare($sql);
+            $stmt->execute($params);
             $customer = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$customer) {
-                echo json_encode(['success' => false, 'message' => 'Customer not found']);
+                echo json_encode(['success' => false, 'message' => 'Customer details not found for phone: ' . $phone]);
                 exit;
             }
 
@@ -97,7 +129,10 @@ if (isset($_GET['action'])) {
             }
 
             // Calculate days since last order
-            $daysSinceLastOrder = (new DateTime())->diff(new DateTime($customer['last_order']))->days;
+            $daysSinceLastOrder = 0;
+            if (!empty($customer['last_order'])) {
+                $daysSinceLastOrder = (new DateTime())->diff(new DateTime($customer['last_order']))->days;
+            }
 
             // Get customer tags
             $tags = [];
@@ -113,7 +148,7 @@ if (isset($_GET['action'])) {
                 'days_since_last_order' => $daysSinceLastOrder,
                 'avg_order_value' => $customer['order_count'] > 0 ? $customer['total_spent'] / $customer['order_count'] : 0
             ]);
-        } catch (Exception $e) { echo json_encode(['success' => false, 'message' => 'Database error']); }
+        } catch (Exception $e) { echo json_encode(['success' => false, 'message' => 'Database error: ' . $e->getMessage()]); }
         exit;
     }
 
@@ -706,10 +741,10 @@ function getSegmentColor($segment) {
                                 content.innerHTML = html;
                             });
                     } else {
-                        content.innerHTML = '<div class="text-center py-8 text-red-500">Failed to load customer details</div>';
+                        content.innerHTML = '<div class="text-center py-8 text-red-500 font-medium">' + (data.message || 'Failed to load customer details') + '</div>';
                     }
                 })
-                .catch(err => { content.innerHTML = '<div class="text-center py-8 text-red-500">Failed to load customer details</div>'; });
+                .catch(err => { content.innerHTML = '<div class="text-center py-8 text-red-500 font-medium">Failed to load customer details: ' + (err.message || 'Network error') + '</div>'; });
         }
         
         function closeCustomerModal() { 
