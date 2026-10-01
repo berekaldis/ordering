@@ -109,18 +109,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Failed to save product: " . $e->getMessage();
         }
     } elseif ($action === 'delete') {
-        $id = $_POST['id'] ?? 0;
-        try {
-            $stmt = db()->prepare("DELETE FROM dairy_products WHERE id = ?");
-            $stmt->execute([$id]);
-            $success = "Product deleted successfully";
-            logActivity($_SESSION['admin_id'], 'DELETE_PRODUCT', 'PRODUCT', $id, "Deleted product ID: $id");
-        } catch (Exception $e) {
-            $error = "Failed to delete product";
+        $id = intval($_POST['id'] ?? 0);
+        if ($id > 0) {
+            try {
+                $stmt = db()->prepare("DELETE FROM dairy_products WHERE id = ?");
+                $stmt->execute([$id]);
+                $success = "Product deleted successfully";
+                logActivity($_SESSION['admin_id'], 'DELETE_PRODUCT', 'PRODUCT', $id, "Deleted product ID: $id");
+            } catch (Exception $e) {
+                $error = "Failed to delete product: " . $e->getMessage();
+            }
+        } else {
+            $error = "Invalid product ID specified for deletion.";
         }
     } elseif ($action === 'toggle_status') {
-        $id = $_POST['id'] ?? 0;
-        $status = $_POST['status'] ?? 0;
+        $id = intval($_POST['id'] ?? 0);
+        $status = intval($_POST['status'] ?? 0);
         try {
             $stmt = db()->prepare("UPDATE dairy_products SET status = ? WHERE id = ?");
             $stmt->execute([$status, $id]);
@@ -129,8 +133,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Failed to update status";
         }
     } elseif ($action === 'update_stock') {
-        $id = $_POST['id'] ?? 0;
-        $stock = $_POST['stock_quantity'] ?? 0;
+        $id = intval($_POST['id'] ?? 0);
+        $stock = intval($_POST['stock_quantity'] ?? 0);
         try {
             $stmt = db()->prepare("UPDATE dairy_products SET stock_quantity = ? WHERE id = ?");
             $stmt->execute([$stock, $id]);
@@ -139,7 +143,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = "Failed to update stock";
         }
     } elseif ($action === 'bulk_delete') {
-        $ids = $_POST['ids'] ?? [];
+        $rawIds = $_POST['ids'] ?? [];
+        if (is_string($rawIds)) {
+            $ids = json_decode($rawIds, true) ?: [];
+        } else {
+            $ids = $rawIds;
+        }
+        $ids = array_map('intval', array_filter((array)$ids));
         if (!empty($ids)) {
             try {
                 $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -150,6 +160,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Exception $e) {
                 $error = "Failed to delete products: " . $e->getMessage();
             }
+        } else {
+            $error = "No valid products selected for deletion.";
         }
     } elseif ($action === 'import_products') {
         $duplicateHandling = $_POST['duplicate_handling'] ?? 'update';
