@@ -194,7 +194,17 @@ function handleGetProducts($db) {
     ");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
     foreach ($products as &$p) {
-        $p['unit_price']      = floatval($p['unit_price']);
+        $basePrice = floatval($p['unit_price']);
+        $serviceCharge = $basePrice * 0.0435;
+        $subtotalWithSc = $basePrice + $serviceCharge;
+        $vat = $subtotalWithSc * 0.15;
+        $grandTotal = round($subtotalWithSc + $vat, 2);
+        
+        $p['base_price']      = $basePrice;
+        $p['service_charge']  = round($serviceCharge, 2);
+        $p['vat']             = round($vat, 2);
+        $p['grand_total']     = $grandTotal;
+        $p['unit_price']      = $grandTotal;
         $p['product_name_am'] = $p['product_name_am'] ?? '';
         $p['description']     = $p['description'] ?? '';
     }
@@ -578,7 +588,11 @@ function handleCreateOrder($db) {
         }
         $qty = intval($it['quantity'] ?? 0);
         if ($qty <= 0 || $qty > 99) { echo json_encode(['success' => false, 'message' => 'Invalid quantity']); return; }
-        $price = floatval($prod['unit_price']);
+        $basePrice = floatval($prod['unit_price']);
+        $serviceCharge = $basePrice * 0.0435;
+        $subtotalWithSc = $basePrice + $serviceCharge;
+        $vat = $subtotalWithSc * 0.15;
+        $price = round($subtotalWithSc + $vat, 2);
         $sub   = $price * $qty;
         $total    += $sub;
         $totalQty += $qty;

@@ -9,22 +9,26 @@ if ($getAction === 'export_csv') {
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename=kaldis_products_' . date('Y-m-d') . '.csv');
     $output = fopen('php://output', 'w');
-    fputcsv($output, ['ID', 'Product Code', 'Product Name', 'Product Name (Amharic)', 'Category', 'Variety', 'Unit', 'Unit Price', 'Walk-in Price', 'Stock Quantity', 'Shelf Life', 'Status']);
+    fputcsv($output, ['ID', 'Product Code', 'Product Name', 'Product Name (Amharic)', 'Category', 'Unit', 'Unit Price (Base)', 'Service Charge (4.35%)', 'VAT (15%)', 'Grand Total', 'Stock Quantity', 'Status']);
     
     $stmt = db()->query("SELECT * FROM dairy_products ORDER BY sort_order ASC, product_name ASC");
     while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $base = floatval($row['unit_price']);
+        $sc = $base * 0.0435;
+        $vat = ($base + $sc) * 0.15;
+        $gt = $base + $sc + $vat;
         fputcsv($output, [
             $row['id'],
             $row['product_code'],
             $row['product_name'],
             $row['product_name_am'],
             $row['category'],
-            $row['variety'] ?? '',
             $row['unit'],
-            $row['unit_price'],
-            $row['walkin_price'] ?? '',
+            number_format($base, 2, '.', ''),
+            number_format($sc, 2, '.', ''),
+            number_format($vat, 2, '.', ''),
+            number_format($gt, 2, '.', ''),
             $row['stock_quantity'],
-            ($row['shelf_life_days'] ?? '') . ' days',
             $row['status'] ? 'Active' : 'Inactive'
         ]);
     }
@@ -532,22 +536,25 @@ try {
                                     <th class="px-4 py-3 text-center">
                                         <input type="checkbox" id="tableSelectAll" class="checkbox-custom" onchange="toggleTableSelectAll()">
                                     </th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Product</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Price</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Stock</th>
-                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Product</th>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Code</th>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Category</th>
+                                    <th class="px-3 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Base Price</th>
+                                    <th class="px-3 py-3 text-right text-xs font-semibold text-amber-700 uppercase">Serv. Charge (4.35%)</th>
+                                    <th class="px-3 py-3 text-right text-xs font-semibold text-blue-700 uppercase">VAT (15%)</th>
+                                    <th class="px-3 py-3 text-right text-xs font-bold text-emerald-800 uppercase bg-emerald-50">Grand Total</th>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Stock</th>
+                                    <th class="px-3 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Status</th>
+                                    <th class="px-3 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
                                 <?php foreach ($products as $product): ?>
                                 <tr class="hover:bg-gray-50 transition">
-                                    <td class="px-4 py-3 text-center">
+                                    <td class="px-3 py-3 text-center">
                                         <input type="checkbox" class="product-checkbox checkbox-custom" data-id="<?php echo $product['id']; ?>" onchange="updateSelectedCount()">
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-3 py-3">
                                         <div class="flex items-start gap-3">
                                             <?php if (!empty($product['image'])): ?>
                                                 <img src="../uploads/products/<?php echo htmlspecialchars($product['image']); ?>" alt="<?php echo htmlspecialchars($product['product_name']); ?>" class="w-12 h-12 rounded-lg object-cover border border-gray-200">
@@ -563,7 +570,6 @@ try {
                                                 <?php endif; ?>
                                                 <div class="flex gap-1 mt-1">
                                                     <?php 
-                                                    // Generate random tags for demonstration
                                                     $tags = [];
                                                     if (rand(1, 10) == 1) $tags[] = 'New';
                                                     if (rand(1, 10) == 1) $tags[] = 'Popular';
@@ -581,23 +587,36 @@ try {
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-3 py-3">
                                         <code class="text-sm bg-gray-100 px-2 py-1 rounded"><?php echo htmlspecialchars($product['product_code']); ?></code>
                                     </td>
-                                    <td class="px-4 py-3">
+                                    <td class="px-3 py-3">
                                         <span class="text-sm"><?php echo ucfirst($product['category']); ?></span>
                                         <?php if ($product['variety']): ?>
                                         <p class="text-xs text-gray-500"><?php echo htmlspecialchars($product['variety']); ?></p>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="px-4 py-3">
-                                        <div>
-                                            <p class="font-bold text-green-700"><?php echo number_format($product['unit_price'], 2); ?> ETB</p>
-                                            <p class="text-xs text-gray-500">per <?php echo htmlspecialchars($product['unit']); ?></p>
-                                            <?php if ($product['walkin_price']): ?>
-                                            <p class="text-xs text-gray-500">Walk-in: <?php echo number_format($product['walkin_price'], 2); ?> ETB</p>
-                                            <?php endif; ?>
-                                        </div>
+                                    <?php 
+                                    $basePrice = floatval($product['unit_price']);
+                                    $serviceCharge = $basePrice * 0.0435;
+                                    $subtotalWithSc = $basePrice + $serviceCharge;
+                                    $vat = $subtotalWithSc * 0.15;
+                                    $grandTotal = $subtotalWithSc + $vat;
+                                    ?>
+                                    <td class="px-3 py-3 text-right">
+                                        <span class="font-medium text-gray-800"><?php echo number_format($basePrice, 2); ?> ETB</span>
+                                        <p class="text-[10px] text-gray-400">per <?php echo htmlspecialchars($product['unit']); ?></p>
+                                    </td>
+                                    <td class="px-3 py-3 text-right text-xs text-amber-700 font-medium">
+                                        +<?php echo number_format($serviceCharge, 2); ?> ETB
+                                    </td>
+                                    <td class="px-3 py-3 text-right text-xs text-blue-700 font-medium">
+                                        +<?php echo number_format($vat, 2); ?> ETB
+                                    </td>
+                                    <td class="px-3 py-3 text-right bg-emerald-50/40">
+                                        <span class="font-extrabold text-emerald-800 text-sm bg-emerald-100/80 px-2.5 py-1 rounded-lg border border-emerald-300/70 inline-block shadow-xs">
+                                            <?php echo number_format($grandTotal, 2); ?> ETB
+                                        </span>
                                     </td>
                                     <td class="px-4 py-3">
                                         <div class="flex items-center gap-2">
@@ -711,8 +730,8 @@ try {
                 
                 <div class="grid grid-cols-3 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Unit Price (ETB)</label>
-                        <input type="number" step="0.01" name="unit_price" id="unitPrice" required placeholder="120"
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Base Unit Price (ETB)</label>
+                        <input type="number" step="0.01" name="unit_price" id="unitPrice" required placeholder="100"
                                class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                     </div>
                     <div>
@@ -724,6 +743,26 @@ try {
                         <label class="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
                         <input type="number" name="stock_quantity" id="stockQuantity" value="100"
                                class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                    </div>
+                </div>
+
+                <!-- Real-time Price Breakdown Box -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs space-y-1.5" id="priceBreakdownBox">
+                    <div class="flex justify-between text-gray-600">
+                        <span>Base Price:</span>
+                        <span id="calcBasePrice" class="font-semibold">0.00 ETB</span>
+                    </div>
+                    <div class="flex justify-between text-amber-700">
+                        <span>+ Service Charge (4.35%):</span>
+                        <span id="calcServiceCharge" class="font-semibold">+0.00 ETB</span>
+                    </div>
+                    <div class="flex justify-between text-blue-700">
+                        <span>+ VAT (15% on Subtotal):</span>
+                        <span id="calcVat" class="font-semibold">+0.00 ETB</span>
+                    </div>
+                    <div class="flex justify-between text-emerald-800 font-extrabold border-t border-slate-200 pt-1.5 text-sm">
+                        <span>Grand Total (Webapp Display Price):</span>
+                        <span id="calcGrandTotal" class="text-emerald-700">0.00 ETB</span>
                     </div>
                 </div>
                 
@@ -1014,11 +1053,28 @@ try {
             }
         }
         
+        function updatePriceBreakdown() {
+            const base = parseFloat(document.getElementById('unitPrice')?.value) || 0;
+            const sc = base * 0.0435;
+            const subsc = base + sc;
+            const vat = subsc * 0.15;
+            const gt = subsc + vat;
+            
+            if (document.getElementById('calcBasePrice')) {
+                document.getElementById('calcBasePrice').textContent = base.toFixed(2) + ' ETB';
+                document.getElementById('calcServiceCharge').textContent = '+' + sc.toFixed(2) + ' ETB';
+                document.getElementById('calcVat').textContent = '+' + vat.toFixed(2) + ' ETB';
+                document.getElementById('calcGrandTotal').textContent = gt.toFixed(2) + ' ETB';
+            }
+        }
+        document.getElementById('unitPrice')?.addEventListener('input', updatePriceBreakdown);
+
         function openProductModal() {
             document.getElementById('modalTitle').textContent = 'Add Product';
             document.getElementById('formAction').value = 'add';
             document.getElementById('productId').value = '0';
             document.getElementById('productForm').reset();
+            updatePriceBreakdown();
             document.getElementById('productModal').classList.add('flex');
             document.getElementById('productModal').classList.remove('hidden');
         }
@@ -1038,6 +1094,8 @@ try {
             document.getElementById('descriptionAm').value = product.description_am || '';
             document.getElementById('sortOrder').value = product.sort_order || 0;
             document.getElementById('status').value = product.status !== undefined ? product.status : 1;
+            
+            updatePriceBreakdown();
             
             // Show image preview if exists
             const preview = document.getElementById('imagePreview');
