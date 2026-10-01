@@ -131,17 +131,17 @@ $logoUrl = getLogoUrl() ?: 'uploads/logo/kaldis-logo.png';
                         <i class="fas fa-mug-hot"></i> Start Office Order Now
                     </a>
                     
-                    <a href="https://t.me/Kaldis_Order_bot" 
+                    <a href="https://t.me/EcaOrdering_bot" 
                        class="flex items-center justify-center gap-2 w-full bg-slate-100 hover:bg-slate-200/80 text-slate-800 py-3 rounded-xl font-semibold border border-slate-200 transition text-sm"
                        target="_blank">
-                        <i class="fab fa-telegram text-sky-500"></i> Open with Telegram Bot (@Kaldis_Order_bot)
+                        <i class="fab fa-telegram text-sky-500"></i> Open with Telegram Bot (@EcaOrdering_bot)
                     </a>
                 </div>
                 
                 <!-- Footer Info -->
                 <div class="pt-4 border-t border-stone-100 text-center text-xs text-stone-400 space-y-1">
                     <p>© <?php echo date('Y'); ?> Kaldis Coffee - ECA Branch. All rights reserved.</p>
-                    <p class="text-[11px]">📍 UNECA Compound, Menelik II Ave, Addis Ababa | 📞 0930-332185</p>
+                    <p class="text-[11px]">📍 UNECA Compound, Menelik II Ave, Addis Ababa | 📞 0992098459</p>
                 </div>
             </div>
         </div>
