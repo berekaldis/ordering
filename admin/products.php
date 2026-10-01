@@ -3,7 +3,47 @@ require_once '../config.php';
 requireAdminLogin();
 requirePermission('products');
 
-// Handle product operations
+// Handle GET actions (file downloads)
+$getAction = $_GET['action'] ?? '';
+if ($getAction === 'export_csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=kaldis_products_' . date('Y-m-d') . '.csv');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['ID', 'Product Code', 'Product Name', 'Product Name (Amharic)', 'Category', 'Variety', 'Unit', 'Unit Price', 'Walk-in Price', 'Stock Quantity', 'Shelf Life', 'Status']);
+    
+    $stmt = db()->query("SELECT * FROM dairy_products ORDER BY sort_order ASC, product_name ASC");
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        fputcsv($output, [
+            $row['id'],
+            $row['product_code'],
+            $row['product_name'],
+            $row['product_name_am'],
+            $row['category'],
+            $row['variety'] ?? '',
+            $row['unit'],
+            $row['unit_price'],
+            $row['walkin_price'] ?? '',
+            $row['stock_quantity'],
+            ($row['shelf_life_days'] ?? '') . ' days',
+            $row['status'] ? 'Active' : 'Inactive'
+        ]);
+    }
+    fclose($output);
+    exit;
+} elseif ($getAction === 'download_sample_csv') {
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename=kaldis_products_sample.csv');
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['product_code', 'product_name', 'product_name_am', 'category', 'unit', 'unit_price', 'stock_quantity', 'description', 'description_am', 'status']);
+    fputcsv($output, ['ESP-01', 'Single Espresso', 'ሲንግል ኤስፕሬሶ', 'coffee', 'cup', '65.00', '100', 'Rich and intense single shot espresso', 'በጣም ጣፋጭ የነጠላ ኤስፕሬሶ ቡና', '1']);
+    fputcsv($output, ['MAC-02', 'Macchiato', 'ማኪያቶ', 'coffee', 'cup', '75.00', '100', 'Classic Ethiopian Macchiato with steamed milk foam', 'ኢትዮጵያዊ ማኪያቶ በወተት አረፋ', '1']);
+    fputcsv($output, ['LAT-03', 'Cafe Latte', 'ካፌ ላቴ', 'coffee', 'cup', '85.00', '100', 'Smooth espresso with fresh steamed milk', 'ለሰስ ያለ የኤስፕሬሶ እና የወተት ውህድ', '1']);
+    fputcsv($output, ['CK-01', 'Chocolate Cake Slice', 'የቾኮሌት ኬክ', 'pastry', 'piece', '120.00', '50', 'Decadent dark chocolate layer cake slice', 'በጣም ጣፋጭ የቾኮሌት ኬክ ቆራጭ', '1']);
+    fclose($output);
+    exit;
+}
+
+// Handle POST product operations
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
     
@@ -111,31 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = "Failed to delete products: " . $e->getMessage();
             }
         }
-    } elseif ($action === 'export_csv') {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=kaldis_products_' . date('Y-m-d') . '.csv');
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['ID', 'Product Code', 'Product Name', 'Product Name (Amharic)', 'Category', 'Variety', 'Unit', 'Unit Price', 'Walk-in Price', 'Stock Quantity', 'Shelf Life', 'Status']);
-        
-        $stmt = db()->query("SELECT * FROM dairy_products ORDER BY sort_order ASC, product_name ASC");
-        while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-            fputcsv($output, [
-                $row['id'],
-                $row['product_code'],
-                $row['product_name'],
-                $row['product_name_am'],
-                $row['category'],
-                $row['variety'],
-                $row['unit'],
-                $row['unit_price'],
-                $row['walkin_price'],
-                $row['stock_quantity'],
-                $row['shelf_life_days'] . ' days',
-                $row['status'] ? 'Active' : 'Inactive'
-            ]);
-        }
-        fclose($output);
-        exit;
     } elseif ($action === 'import_products') {
         $duplicateHandling = $_POST['duplicate_handling'] ?? 'update';
         
@@ -257,17 +272,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error = "Please select a valid CSV or JSON file to upload.";
         }
-    } elseif ($action === 'download_sample_csv') {
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename=kaldis_products_sample.csv');
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['product_code', 'product_name', 'product_name_am', 'category', 'unit', 'unit_price', 'stock_quantity', 'description', 'description_am', 'status']);
-        fputcsv($output, ['ESP-01', 'Single Espresso', 'ሲንግል ኤስፕሬሶ', 'coffee', 'cup', '65.00', '100', 'Rich and intense single shot espresso', 'በጣም ጣፋጭ የነጠላ ኤስፕሬሶ ቡና', '1']);
-        fputcsv($output, ['MAC-02', 'Macchiato', 'ማኪያቶ', 'coffee', 'cup', '75.00', '100', 'Classic Ethiopian Macchiato with steamed milk foam', 'ኢትዮጵያዊ ማኪያቶ በወተት አረፋ', '1']);
-        fputcsv($output, ['LAT-03', 'Cafe Latte', 'ካፌ ላቴ', 'coffee', 'cup', '85.00', '100', 'Smooth espresso with fresh steamed milk', 'ለሰስ ያለ የኤስፕሬሶ እና የወተት ውህድ', '1']);
-        fputcsv($output, ['CK-01', 'Chocolate Cake Slice', 'የቾኮሌት ኬክ', 'pastry', 'piece', '120.00', '50', 'Decadent dark chocolate layer cake slice', 'በጣም ጣፋጭ የቾኮሌት ኬክ ቆራጭ', '1']);
-        fclose($output);
-        exit;
     }
 }
 
