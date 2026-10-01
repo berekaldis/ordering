@@ -1479,32 +1479,45 @@ function rProds(){
     }
 }
 
-function clearBldgSearch(){
-    S.bldgSearchQuery = '';
-    rLoc();
+function selLoc(id){
+    hap('light');
+    if(locations && locations.length){
+        for(var i=0; i<locations.length; i++){
+            if(locations[i].id == id){
+                S.location = locations[i];
+                break;
+            }
+        }
+    }
+    saveLocal();
+    refreshBldgListUI();
 }
 
-function rLoc(){
-    _prodsActive=false;
-    var m=document.getElementById('cont');
-    var top='<span class="sect">🏢 '+t('selloc')+'</span>';
-    var body='';
+function clearBldgSearch(){
+    S.bldgSearchQuery = '';
+    var bi = document.getElementById('bldgSearchInput');
+    if(bi) bi.value = '';
+    refreshBldgListUI();
+    if(bi) bi.focus();
+}
 
-    body+='<div class="pay-alert" style="margin-bottom:10px">';
-    body+='<span class="pay-alert-icon">⚡</span>';
-    body+='<div><div class="pay-alert-text">Fast Desk Delivery inside UNECA</div><div class="pay-alert-sub">Select your building, floor and desk for swift office delivery</div></div>';
-    body+='</div>';
+function refreshBldgListUI(){
+    var container = document.getElementById('bldgListContainer');
+    if(!container) return;
 
-    // BUILDING SEARCH BAR
     var bq = (S.bldgSearchQuery || '').toLowerCase().trim();
-    body+='<div class="search-wrap" style="margin-bottom:10px">';
-    body+='<div class="search-box'+(bq?' has-value':'')+'">';
-    body+='<svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>';
-    body+='<input type="text" id="bldgSearchInput" class="search-input" placeholder="🔍 Search ECA building (e.g. Africa Hall, Secretariat)..." value="'+esc(S.bldgSearchQuery||'')+'" autocomplete="off">';
-    if(bq){
-        body+='<button class="search-clear visible" onclick="clearBldgSearch()">✕</button>';
+    
+    var clrBtn = document.getElementById('_bldgClearBtn');
+    if(clrBtn){
+        if(bq) clrBtn.classList.add('visible');
+        else clrBtn.classList.remove('visible');
     }
-    body+='</div></div>';
+
+    var sbox = document.getElementById('_bldgSearchBox');
+    if(sbox){
+        if(bq) sbox.classList.add('has-value');
+        else sbox.classList.remove('has-value');
+    }
 
     var filteredLocs = locations.filter(function(loc){
         if(!bq) return true;
@@ -1514,41 +1527,77 @@ function rLoc(){
         return nEn.indexOf(bq) !== -1 || nAm.indexOf(bq) !== -1 || code.indexOf(bq) !== -1;
     });
 
+    var body = '';
     if(filteredLocs.length === 0){
-        body+='<div style="text-align:center;padding:20px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:14px;color:#92400E;margin-bottom:10px">';
-        body+='<div style="font-size:24px;margin-bottom:4px">🏢❓</div>';
-        body+='<div style="font-size:12px;font-weight:700">No ECA building matched "'+esc(S.bldgSearchQuery)+'"</div>';
-        body+='<div style="font-size:10px;margin-top:2px">Select "Other Building / Location" below or clear your search to browse all buildings.</div>';
-        body+='</div>';
+        body += '<div style="text-align:center;padding:20px;background:#FFFBEB;border:1px solid #FCD34D;border-radius:14px;color:#92400E;margin-bottom:10px">';
+        body += '<div style="font-size:24px;margin-bottom:4px">🏢❓</div>';
+        body += '<div style="font-size:12px;font-weight:700">No ECA building matched "'+esc(S.bldgSearchQuery)+'"</div>';
+        body += '<div style="font-size:10px;margin-top:2px">Clear your search to view all ECA buildings.</div>';
+        body += '</div>';
     }
 
-    body+='<div style="display:flex;flex-direction:column;gap:7px" id="bldgList">';
-    for(var i=0;i<filteredLocs.length;i++){
-        var loc=filteredLocs[i];
-        var sel=(S.location&&S.location.id===loc.id);
-        var nm=S.lang==='am'?(loc.name_am||loc.name):loc.name;
-        body+='<div onclick="selLoc(\''+esc(loc.id)+'\')" class="card sc'+(sel?' on':'')+'"><div class="si" style="background:'+(sel?'var(--pm)':'var(--p50)')+';color:'+(sel?'#fff':'var(--pm)')+'">'+(loc.icon||'🏢')+'</div><span style="flex:1;font-size:13px;font-weight:700">'+esc(nm)+'</span><div class="sch">'+(sel?'<svg width="10" height="10" fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>':'')+'</div></div>';
+    body += '<div style="display:flex;flex-direction:column;gap:7px">';
+    for(var i=0; i<filteredLocs.length; i++){
+        var loc = filteredLocs[i];
+        var sel = (S.location && S.location.id == loc.id);
+        var nm = S.lang === 'am' ? (loc.name_am || loc.name) : loc.name;
+        body += '<div onclick="selLoc(\''+esc(loc.id)+'\')" class="card sc'+(sel?' on':'')+'"><div class="si" style="background:'+(sel?'var(--pm)':'var(--p50)')+';color:'+(sel?'#fff':'var(--pm)')+'">'+(loc.icon||'🏢')+'</div><span style="flex:1;font-size:13px;font-weight:700">'+esc(nm)+'</span><div class="sch">'+(sel?'<svg width="10" height="10" fill="none" stroke="#fff" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>':'')+'</div></div>';
     }
-    body+='</div>';
+    body += '</div>';
 
-    body+='<div style="margin-top:12px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#24140E,#572C18);color:#fff">';
-    body+='<div style="padding:10px 14px 6px;font-size:9px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(217,119,6,.9)">🏃 Kaldis Desk Delivery</div>';
-    body+='<div style="display:flex;gap:0;padding:0 12px 12px">';
-    body+='<div style="flex:1;text-align:center"><div style="font-size:20px">☕</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">Fresh Brewed</div></div>';
-    body+='<div style="flex:1;text-align:center"><div style="font-size:20px">⚡</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">15-25 Mins</div></div>';
-    body+='<div style="flex:1;text-align:center"><div style="font-size:20px">🏢</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">To Desk</div></div>';
-    body+='<div style="flex:1;text-align:center"><div style="font-size:20px">🔒</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">Hot & Sealed</div></div>';
-    body+='</div></div>';
+    container.innerHTML = body;
+}
 
-    m.innerHTML=wrap(2,top,body,'');
+function rLoc(){
+    _prodsActive = false;
+    var m = document.getElementById('cont');
+    var top = '<span class="sect">🏢 '+t('selloc')+'</span>';
+    var body = '';
+
+    body += '<div class="pay-alert" style="margin-bottom:10px">';
+    body += '<span class="pay-alert-icon">⚡</span>';
+    body += '<div><div class="pay-alert-text">Fast Desk Delivery inside UNECA</div><div class="pay-alert-sub">Select your building, floor and desk for swift office delivery</div></div>';
+    body += '</div>';
+
+    // SEARCH INPUT WRAPPER
+    var bq = (S.bldgSearchQuery || '').toLowerCase().trim();
+    body += '<div class="search-wrap" style="margin-bottom:10px">';
+    body += '<div class="search-box'+(bq?' has-value':'')+'" id="_bldgSearchBox">';
+    body += '<svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>';
+    body += '<input type="text" id="bldgSearchInput" class="search-input" placeholder="🔍 Search ECA building (e.g. Africa Hall, Secretariat)..." value="'+esc(S.bldgSearchQuery||'')+'" autocomplete="off">';
+    body += '<button class="search-clear'+(bq?' visible':'')+'" id="_bldgClearBtn" onclick="clearBldgSearch()">✕</button>';
+    body += '</div></div>';
+
+    // CONTAINER FOR DYNAMIC LIST OF BUILDINGS
+    body += '<div id="bldgListContainer"></div>';
+
+    body += '<div style="margin-top:12px;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#24140E,#572C18);color:#fff">';
+    body += '<div style="padding:10px 14px 6px;font-size:9px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:rgba(217,119,6,.9)">🏃 Kaldis Desk Delivery</div>';
+    body += '<div style="display:flex;gap:0;padding:0 12px 12px">';
+    body += '<div style="flex:1;text-align:center"><div style="font-size:20px">☕</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">Fresh Brewed</div></div>';
+    body += '<div style="flex:1;text-align:center"><div style="font-size:20px">⚡</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">15-25 Mins</div></div>';
+    body += '<div style="flex:1;text-align:center"><div style="font-size:20px">🏢</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">To Desk</div></div>';
+    body += '<div style="flex:1;text-align:center"><div style="font-size:20px">🔒</div><div style="font-size:7px;font-weight:700;color:rgba(255,255,255,.6);margin-top:2px">Hot & Sealed</div></div>';
+    body += '</div></div>';
+
+    m.innerHTML = wrap(2, top, body, '');
+
+    refreshBldgListUI();
 
     var bi = document.getElementById('bldgSearchInput');
     if(bi){
         bi.addEventListener('input', function(e){
             S.bldgSearchQuery = e.target.value;
-            rLoc();
+            refreshBldgListUI();
         });
-        if(bq) bi.focus();
+        bi.addEventListener('focus', function(){
+            var box = this.closest('.search-box');
+            if(box) box.classList.add('focused');
+        });
+        bi.addEventListener('blur', function(){
+            var box = this.closest('.search-box');
+            if(box) box.classList.remove('focused');
+        });
     }
 }
 
