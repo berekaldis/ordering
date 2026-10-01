@@ -224,7 +224,6 @@ CREATE TABLE `dairy_products` (
   `product_code` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `product_name` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
   `product_name_am` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `category_id` int DEFAULT NULL,
   `category` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'coffee',
   `variety` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `unit` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'cup',
@@ -233,10 +232,8 @@ CREATE TABLE `dairy_products` (
   `image` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `description` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
   `description_am` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `nutrition_info` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `storage_instructions` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
-  `shelf_life_days` int DEFAULT '1',
   `stock_quantity` int DEFAULT '100',
+  `shelf_life_days` int DEFAULT '1',
   `status` tinyint(1) NOT NULL DEFAULT '1',
   `sort_order` int DEFAULT '0',
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
@@ -246,7 +243,7 @@ CREATE TABLE `dairy_products` (
   KEY `idx_category` (`category`),
   KEY `idx_status` (`status`),
   KEY `idx_sort_order` (`sort_order`)
-) ENGINE=InnoDB AUTO_INCREMENT=35 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -255,7 +252,8 @@ CREATE TABLE `dairy_products` (
 
 LOCK TABLES `dairy_products` WRITE;
 /*!40000 ALTER TABLE `dairy_products` DISABLE KEYS */;
-INSERT INTO `dairy_products` VALUES (1,'KLD-COF-001','Kaldis Macchiato','ካልዲስ ማኪያቶ','coffee','','cup',95,0,'prod_6abc0be46e1056.52287604.jpg','Our signature rich Ethiopian espresso with velvety steamed milk foam.','',100,1,1,1,'2026-09-24 18:44:09','2026-09-29 22:05:08'),
+INSERT INTO `dairy_products` (`id`, `product_code`, `product_name`, `product_name_am`, `category`, `variety`, `unit`, `unit_price`, `walkin_price`, `image`, `description`, `description_am`, `stock_quantity`, `shelf_life_days`, `status`, `sort_order`, `created_at`, `updated_at`) VALUES
+(1,'KLD-COF-001','Kaldis Macchiato','ካልዲስ ማኪያቶ','coffee','','cup',95,0,'prod_6abc0be46e1056.52287604.jpg','Our signature rich Ethiopian espresso with velvety steamed milk foam.','',100,1,1,1,'2026-09-24 18:44:09','2026-09-29 22:05:08'),
 (2,'KLD-COF-002','Double Macchiato','ድርብ ማኪያቶ','milk','','cup',130,0,'','Double shot espresso marked with warm milk froth for an extra energy boost.','',10,1,1,2,'2026-09-24 18:44:09','2026-09-29 21:30:15'),
 (3,'KLD-COF-003','Single Espresso','ነጠላ ኤስፕሬሶ','coffee',NULL,'cup',85,NULL,NULL,'Pure, aromatic Ethiopian highland espresso with thick golden crema.',NULL,100,1,1,3,'2026-09-24 18:44:09','2026-09-24 18:44:09'),
 (4,'KLD-COF-004','Double Espresso','ድርብ ኤስፕሬሶ','coffee',NULL,'cup',120,NULL,NULL,'Intense double shot of single-origin Kaldis espresso.',NULL,100,1,1,4,'2026-09-24 18:44:09','2026-09-24 18:44:09'),
