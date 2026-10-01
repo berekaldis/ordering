@@ -136,6 +136,138 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         fclose($output);
         exit;
+    } elseif ($action === 'import_products') {
+        $duplicateHandling = $_POST['duplicate_handling'] ?? 'update';
+        
+        if (isset($_FILES['import_file']) && $_FILES['import_file']['error'] === UPLOAD_ERR_OK) {
+            $tmpPath = $_FILES['import_file']['tmp_name'];
+            $fileName = $_FILES['import_file']['name'];
+            $ext = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+            
+            $importedCount = 0;
+            $updatedCount = 0;
+            $skippedCount = 0;
+            $rows = [];
+            
+            if ($ext === 'csv') {
+                if (($handle = fopen($tmpPath, 'r')) !== FALSE) {
+                    $bom = fread($handle, 3);
+                    if ($bom !== "\xEF\xBB\xBF") {
+                        rewind($handle);
+                    }
+                    
+                    $headers = fgetcsv($handle, 1000, ',');
+                    if ($headers) {
+                        $headers = array_map(function($h) {
+                            return strtolower(trim(preg_replace('/[\x00-\x1F\x7F-\xFF]/', '', $h)));
+                        }, $headers);
+                        
+                        while (($data = fgetcsv($handle, 1000, ',')) !== FALSE) {
+                            if (count($data) > 0) {
+                                $row = [];
+                                foreach ($headers as $i => $header) {
+                                    $row[$header] = trim($data[$i] ?? '');
+                                }
+                                $rows[] = $row;
+                            }
+                        }
+                    }
+                    fclose($handle);
+                }
+            } elseif ($ext === 'json') {
+                $jsonContent = file_get_contents($tmpPath);
+                $jsonData = json_decode($jsonContent, true);
+                if (is_array($jsonData)) {
+                    $rows = $jsonData;
+                }
+            } else {
+                $error = "Unsupported file format. Please upload a CSV or JSON file.";
+            }
+            
+            if (!empty($rows)) {
+                db()->beginTransaction();
+                try {
+                    $checkStmt = db()->prepare("SELECT id FROM dairy_products WHERE (product_code = ? AND product_code != '') OR product_name = ? LIMIT 1");
+                    
+                    $insertStmt = db()->prepare("
+                        INSERT INTO dairy_products 
+                        (product_code, product_name, product_name_am, category, unit, unit_price, stock_quantity, description, description_am, status, sort_order)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    $updateStmt = db()->prepare("
+                        UPDATE dairy_products 
+                        SET product_name=?, product_name_am=?, category=?, unit=?, unit_price=?, stock_quantity=?, description=?, description_am=?, status=?
+                        WHERE id=?
+                    ");
+                    
+                    foreach ($rows as $row) {
+                        $code = $row['product_code'] ?? $row['code'] ?? $row['product code'] ?? '';
+                        $name = $row['product_name'] ?? $row['name'] ?? $row['product name'] ?? '';
+                        $nameAm = $row['product_name_am'] ?? $row['product_name (amharic)'] ?? $row['amharic_name'] ?? $row['name_am'] ?? '';
+                        $cat = strtolower($row['category'] ?? 'coffee');
+                        $unit = $row['unit'] ?? 'cup';
+                        $price = floatval($row['unit_price'] ?? $row['unit price'] ?? $row['price'] ?? 0);
+                        $stock = intval($row['stock_quantity'] ?? $row['stock quantity'] ?? $row['stock'] ?? 100);
+                        $desc = $row['description'] ?? '';
+                        $descAm = $row['description_am'] ?? '';
+                        $statusRaw = strtolower(trim((string)($row['status'] ?? '1')));
+                        $status = ($statusRaw === 'active' || $statusRaw === '1' || $statusRaw === 'true') ? 1 : 0;
+                        $sortOrder = intval($row['sort_order'] ?? 0);
+                        
+                        if (empty($name) && empty($code)) {
+                            continue;
+                        }
+                        
+                        if (empty($code)) {
+                            $code = 'PROD-' . strtoupper(substr(md5($name . microtime()), 0, 6));
+                        }
+                        
+                        $checkStmt->execute([$code, $name]);
+                        $existing = $checkStmt->fetch();
+                        
+                        if ($existing) {
+                            if ($duplicateHandling === 'skip') {
+                                $skippedCount++;
+                                continue;
+                            } else {
+                                $updateStmt->execute([
+                                    $name, $nameAm, $cat, $unit, $price, $stock, $desc, $descAm, $status, $existing['id']
+                                ]);
+                                $updatedCount++;
+                            }
+                        } else {
+                            $insertStmt->execute([
+                                $code, $name, $nameAm, $cat, $unit, $price, $stock, $desc, $descAm, $status, $sortOrder
+                            ]);
+                            $importedCount++;
+                        }
+                    }
+                    
+                    db()->commit();
+                    $success = "Product import complete! <b>$importedCount</b> created, <b>$updatedCount</b> updated, <b>$skippedCount</b> skipped.";
+                    logActivity($_SESSION['admin_id'], 'IMPORT_PRODUCTS', 'PRODUCT', 0, "Imported products: $importedCount new, $updatedCount updated, $skippedCount skipped");
+                } catch (Exception $e) {
+                    db()->rollBack();
+                    $error = "Failed to import products: " . $e->getMessage();
+                }
+            } elseif (!isset($error)) {
+                $error = "No valid product rows found in the uploaded file.";
+            }
+        } else {
+            $error = "Please select a valid CSV or JSON file to upload.";
+        }
+    } elseif ($action === 'download_sample_csv') {
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename=kaldis_products_sample.csv');
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['product_code', 'product_name', 'product_name_am', 'category', 'unit', 'unit_price', 'stock_quantity', 'description', 'description_am', 'status']);
+        fputcsv($output, ['ESP-01', 'Single Espresso', 'ሲንግል ኤስፕሬሶ', 'coffee', 'cup', '65.00', '100', 'Rich and intense single shot espresso', 'በጣም ጣፋጭ የነጠላ ኤስፕሬሶ ቡና', '1']);
+        fputcsv($output, ['MAC-02', 'Macchiato', 'ማኪያቶ', 'coffee', 'cup', '75.00', '100', 'Classic Ethiopian Macchiato with steamed milk foam', 'ኢትዮጵያዊ ማኪያቶ በወተት አረፋ', '1']);
+        fputcsv($output, ['LAT-03', 'Cafe Latte', 'ካፌ ላቴ', 'coffee', 'cup', '85.00', '100', 'Smooth espresso with fresh steamed milk', 'ለሰስ ያለ የኤስፕሬሶ እና የወተት ውህድ', '1']);
+        fputcsv($output, ['CK-01', 'Chocolate Cake Slice', 'የቾኮሌት ኬክ', 'pastry', 'piece', '120.00', '50', 'Decadent dark chocolate layer cake slice', 'በጣም ጣፋጭ የቾኮሌት ኬክ ቆራጭ', '1']);
+        fclose($output);
+        exit;
     }
 }
 
@@ -245,11 +377,14 @@ try {
             <div class="bg-white shadow-sm border-b px-6 py-4 flex justify-between items-center">
                 <h1 class="text-2xl font-bold text-gray-800">Kaldis Menu & Products</h1>
                 <div class="flex items-center gap-3">
-                    <button onclick="exportProducts()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">
-                        <i class="fas fa-file-csv mr-2"></i>Export CSV
+                    <button onclick="exportProducts()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 font-medium transition flex items-center gap-2">
+                        <i class="fas fa-file-csv"></i>Export CSV
                     </button>
-                    <button onclick="openProductModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
-                        <i class="fas fa-plus mr-2"></i>Add Product
+                    <button onclick="openImportModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium transition flex items-center gap-2">
+                        <i class="fas fa-file-import"></i>Import Products
+                    </button>
+                    <button onclick="openProductModal()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 font-medium transition flex items-center gap-2">
+                        <i class="fas fa-plus"></i>Add Product
                     </button>
                 </div>
             </div>
@@ -660,6 +795,87 @@ try {
             </form>
         </div>
     </div>
+
+    <!-- Product Import Modal -->
+    <div id="importModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl transition-all border border-gray-100">
+            <div class="flex justify-between items-center border-b pb-4 mb-4">
+                <div>
+                    <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                        <i class="fas fa-file-import text-blue-600"></i> Import Products
+                    </h3>
+                    <p class="text-xs text-gray-500 mt-1">Bulk upload products using a CSV or JSON file</p>
+                </div>
+                <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold p-1">&times;</button>
+            </div>
+            
+            <form method="POST" enctype="multipart/form-data" class="space-y-4">
+                <input type="hidden" name="action" value="import_products">
+                
+                <!-- Sample Download Banner -->
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3.5 flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-9 h-9 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center font-bold">
+                            <i class="fas fa-file-csv text-lg"></i>
+                        </div>
+                        <div>
+                            <p class="text-xs font-bold text-blue-900">Need a template?</p>
+                            <p class="text-[11px] text-blue-700">Download sample CSV file with pre-formatted headers</p>
+                        </div>
+                    </div>
+                    <a href="products.php?action=download_sample_csv" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-download"></i> Sample CSV
+                    </a>
+                </div>
+                
+                <!-- File Upload Area -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Select CSV or JSON File <span class="text-red-500">*</span></label>
+                    <div class="border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-xl p-6 text-center bg-gray-50 transition cursor-pointer" onclick="document.getElementById('import_file').click()">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                        <p class="text-sm font-medium text-gray-700">Click to choose file or drag & drop</p>
+                        <p class="text-xs text-gray-400 mt-1">Supported formats: .csv, .json (Max 10MB)</p>
+                        <p id="fileNameDisplay" class="text-xs font-bold text-blue-600 mt-2.5 hidden"></p>
+                    </div>
+                    <input type="file" id="import_file" name="import_file" accept=".csv, .json, text/csv, application/json" required class="hidden" onchange="displayImportFileName(this)">
+                </div>
+                
+                <!-- Duplicate Handling Option -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">Duplicate Product Handling</label>
+                    <div class="grid grid-cols-2 gap-3">
+                        <label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition border-blue-500 bg-blue-50/50">
+                            <input type="radio" name="duplicate_handling" value="update" checked class="text-blue-600 focus:ring-blue-500">
+                            <div class="ml-2.5">
+                                <span class="block text-xs font-bold text-gray-800">Update Existing</span>
+                                <span class="block text-[11px] text-gray-500">Update details if code/name matches</span>
+                            </div>
+                        </label>
+                        <label class="flex items-center p-3 border rounded-xl cursor-pointer hover:bg-gray-50 transition">
+                            <input type="radio" name="duplicate_handling" value="skip" class="text-blue-600 focus:ring-blue-500">
+                            <div class="ml-2.5">
+                                <span class="block text-xs font-bold text-gray-800">Skip Duplicates</span>
+                                <span class="block text-[11px] text-gray-500">Ignore items that already exist</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Accepted Headers Reference -->
+                <div class="bg-gray-50 rounded-xl p-3 border text-[11px] text-gray-600 space-y-1">
+                    <p class="font-bold text-gray-700 mb-1"><i class="fas fa-info-circle text-blue-500"></i> Supported Headers in CSV:</p>
+                    <p class="font-mono text-gray-800 bg-white p-1.5 rounded border">product_code, product_name, product_name_am, category, unit, unit_price, stock_quantity, description, description_am, status</p>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-3 border-t">
+                    <button type="button" onclick="closeImportModal()" class="px-4 py-2 border rounded-xl text-gray-700 hover:bg-gray-100 font-semibold text-sm">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-semibold text-sm shadow-md transition flex items-center gap-2">
+                        <i class="fas fa-upload"></i> Start Import
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
     
     <script>
         let selectedProducts = [];
@@ -760,6 +976,26 @@ try {
         
         function exportProducts() {
             window.location.href = 'products.php?action=export_csv';
+        }
+        
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('flex');
+            document.getElementById('importModal').classList.remove('hidden');
+        }
+        
+        function closeImportModal() {
+            document.getElementById('importModal').classList.add('hidden');
+            document.getElementById('importModal').classList.remove('flex');
+        }
+        
+        function displayImportFileName(input) {
+            const display = document.getElementById('fileNameDisplay');
+            if (input.files && input.files[0]) {
+                display.textContent = '📄 Selected file: ' + input.files[0].name;
+                display.classList.remove('hidden');
+            } else {
+                display.classList.add('hidden');
+            }
         }
         
         function openProductModal() {

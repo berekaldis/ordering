@@ -714,10 +714,7 @@ function startComplaint($chatId) {
                 ['text' => '☕ Product Quality', 'callback_data' => 'complaint_product']
             ],
             [
-                ['text' => '💳 Payment Problem', 'callback_data' => 'complaint_payment'],
-                ['text' => '📱 Technical Issue', 'callback_data' => 'complaint_technical']
-            ],
-            [
+                ['text' => '📱 Technical Issue', 'callback_data' => 'complaint_technical'],
                 ['text' => '🔄 Order Cancellation', 'callback_data' => 'complaint_cancellation']
             ],
             [
