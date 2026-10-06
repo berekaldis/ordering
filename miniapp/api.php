@@ -50,10 +50,12 @@ function checkRateLimit($action, $max = 30, $window = 60) {
     }
     $_SESSION['rl'][$key]['c']++;
     if ($_SESSION['rl'][$key]['c'] > $max) {
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         http_response_code(429);
         echo json_encode(['success' => false, 'message' => 'Too many requests. Please wait.']);
         exit;
     }
+    if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
 }
 
 // ============================================================
@@ -673,7 +675,7 @@ function handleCreateOrder($db) {
                 $os->execute([
                     $orderNumber, $name, $pr['intl'], $chatId,
                     $locationId, $finalBldg, $apartmentNumber, $floorNumber, $department,
-                    $fullAddr, $deliveryDate, $deliveryTimeSlot, $total, $pm['name'],
+                    $fullAddr, $deliveryDate, $deliveryTimeSlot, $total, $pmName,
                     $paymentRef, $slipFile, $notes,
                     $lang, $finalLat, $finalLng,
                 ]);
@@ -1103,33 +1105,28 @@ function handleSubmitOrderRating($db) {
         return;
     }
 
-    // Check if feedback record already exists for this order
+    // Check if feedback record already exists for this order number
     $checkStmt = $db->prepare("SELECT id FROM feedback WHERE order_number = ? LIMIT 1");
     $checkStmt->execute([$orderNumber]);
     $existing = $checkStmt->fetch(PDO::FETCH_ASSOC);
 
     if ($existing) {
-        $upd = $db->prepare("
-            UPDATE feedback 
-            SET service_rating = ?, product_rating = ?, delivery_rating = ?, written_feedback = ?, chat_id = ?, phone_number = ?, client_name = ?
-            WHERE id = ?
-        ");
-        $upd->execute([
-            $serviceRating, $productRating, $deliveryRating, $writtenFeedback,
-            $chatId, $phoneNumber, $clientName, $existing['id']
+        echo json_encode([
+            'success' => false,
+            'message' => 'Feedback has already been submitted for this order.'
         ]);
-        $feedbackId = $existing['id'];
-    } else {
-        $feedbackId = bin2hex(random_bytes(16));
-        $ins = $db->prepare("
-            INSERT INTO feedback (id, order_number, chat_id, phone_number, client_name, branch_id, service_rating, product_rating, delivery_rating, written_feedback, created_at)
-            VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NOW())
-        ");
-        $ins->execute([
-            $feedbackId, $orderNumber, $chatId, $phoneNumber, $clientName,
-            $serviceRating, $productRating, $deliveryRating, $writtenFeedback
-        ]);
+        return;
     }
+
+    $feedbackId = bin2hex(random_bytes(16));
+    $ins = $db->prepare("
+        INSERT INTO feedback (id, order_number, chat_id, phone_number, client_name, branch_id, service_rating, product_rating, delivery_rating, written_feedback, created_at)
+        VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NOW())
+    ");
+    $ins->execute([
+        $feedbackId, $orderNumber, $chatId, $phoneNumber, $clientName,
+        $serviceRating, $productRating, $deliveryRating, $writtenFeedback
+    ]);
 
     // Log Activity
     try {

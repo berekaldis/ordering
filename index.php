@@ -134,21 +134,21 @@ $logoUrl = getLogoUrl() ?: 'uploads/logo/kaldis-logo.png';
                     <div class="grid grid-cols-2 gap-3">
                         <a href="tel:0992098459" 
                            class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white py-3 px-3 rounded-2xl font-bold shadow-md shadow-emerald-600/20 hover:shadow-emerald-600/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-xs sm:text-sm">
-                            <i class="fas fa-phone-alt text-emerald-200 animate-pulse"></i> Call ECA Branch
+                            <i class="fas fa-phone-alt text-emerald-200 animate-pulse"></i> Mobile: 0992098459
                         </a>
                         
-                        <a href="https://t.me/EcaOrdering_bot" 
-                           class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white py-3 px-3 rounded-2xl font-bold shadow-md shadow-sky-500/20 hover:shadow-sky-500/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-xs sm:text-sm"
-                           target="_blank">
-                            <i class="fab fa-telegram text-sky-100 text-base"></i> Telegram Bot
+                        <a href="tel:0115444437" 
+                           class="flex items-center justify-center gap-2 w-full bg-gradient-to-r from-amber-700 to-orange-700 hover:from-amber-800 hover:to-orange-800 text-white py-3 px-3 rounded-2xl font-bold shadow-md shadow-amber-700/20 hover:shadow-amber-700/30 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 text-xs sm:text-sm">
+                            <i class="fas fa-headset text-amber-200"></i> Ext: 0115444437 (34437)
                         </a>
                     </div>
                 </div>
                 
                 <!-- Footer Info -->
-                <div class="pt-4 border-t border-stone-100 text-center text-xs text-stone-400 space-y-1.5">
+                <div class="pt-4 border-t border-stone-100 text-center text-xs text-stone-500 space-y-1.5">
                     <p>© <?php echo date('Y'); ?> Kaldis Coffee - ECA Branch. All rights reserved.</p>
-                    <p class="text-[11px] text-stone-500 font-medium">📍 UNECA Compound, Menelik II Ave, Addis Ababa | 📞 <a href="tel:0992098459" class="text-amber-700 font-bold hover:underline">0992098459</a></p>
+                    <p class="text-[12px] text-stone-600 font-medium">📍 UNECA Compound, Menelik II Ave, Addis Ababa</p>
+                    <p class="text-[12px] text-stone-700 font-semibold">📞 Mobile: <a href="tel:0992098459" class="text-amber-700 font-bold hover:underline">0992098459</a> | ☎ Ext Phone: <a href="tel:0115444437" class="text-amber-700 font-bold hover:underline">0115444437</a> | 🏢 Ext Short: <span class="text-amber-900 font-extrabold bg-amber-100 px-1.5 py-0.5 rounded">34437</span></p>
                 </div>
             </div>
         </div>

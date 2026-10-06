@@ -120,7 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($submittedTab === 'general') {
             $settingsToUpdate = [
-                'support_phone' => trim($_POST['support_phone'] ?? ''),
+                'support_phone' => trim($_POST['support_phone'] ?? '0992098459'),
+                'extension_phone' => trim($_POST['extension_phone'] ?? '0115444437'),
+                'extension_short' => trim($_POST['extension_short'] ?? '34437'),
                 'telegram_channel' => trim($_POST['telegram_channel'] ?? ''),
                 'min_order_amount' => $_POST['min_order_amount'] ?? '200',
                 'delivery_fee' => $_POST['delivery_fee'] ?? '0',
@@ -142,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
         } else {
             $knownKeys = [
-                'bot_token', 'admin_chat_id', 'mini_app_url', 'support_phone', 'telegram_channel',
+                'bot_token', 'admin_chat_id', 'mini_app_url', 'support_phone', 'extension_phone', 'extension_short', 'telegram_channel',
                 'maintenance_mode', 'min_order_amount', 'delivery_fee', 'refrigeration_warning',
                 'auto_reply_enabled', 'auto_reply_message', 'order_confirmation_template', 'delivery_notification_template'
             ];
@@ -380,21 +382,33 @@ if (!empty($botToken)) {
                                 <input type="hidden" name="action" value="save_settings">
                                 <input type="hidden" name="tab" value="general">
                                 
-                                <!-- Business Information -->
+                                 <!-- Business Information -->
                                 <div class="bg-gray-50 rounded-lg p-4">
-                                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Business Information</h3>
+                                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Business Information & Phone Extensions</h3>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-1">Support Phone</label>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Support Mobile Phone</label>
                                             <input type="text" name="support_phone" value="<?php echo htmlspecialchars($settings['support_phone'] ?? '0992098459'); ?>"
                                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg">
-                                            <p class="text-xs text-gray-500 mt-1">Customer support contact number</p>
+                                            <p class="text-xs text-gray-500 mt-1">Customer support mobile number</p>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-gray-700 mb-1">Telegram Channel</label>
                                             <input type="url" name="telegram_channel" value="<?php echo htmlspecialchars($settings['telegram_channel'] ?? 'https://t.me/ECAKB'); ?>"
                                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg">
                                             <p class="text-xs text-gray-500 mt-1">Link to your Telegram channel</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Extension Phone Number</label>
+                                            <input type="text" name="extension_phone" value="<?php echo htmlspecialchars($settings['extension_phone'] ?? '0115444437'); ?>"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                                            <p class="text-xs text-gray-500 mt-1">ECA landline extension phone (e.g. 0115444437)</p>
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-1">Extension Short Number</label>
+                                            <input type="text" name="extension_short" value="<?php echo htmlspecialchars($settings['extension_short'] ?? '34437'); ?>"
+                                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg">
+                                            <p class="text-xs text-gray-500 mt-1">Short extension number inside UNECA (e.g. 34437)</p>
                                         </div>
                                     </div>
                                 </div>

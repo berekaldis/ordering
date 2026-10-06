@@ -15,3 +15,8 @@ Thumbs.db
 # IDE Files
 .vscode/
 .idea/
+
+# Scratch & Flag Files
+scratch/
+.bot_tables_ok
+

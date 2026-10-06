@@ -118,6 +118,8 @@ function loadBotSettings() {
         'admin_chat_id' => '',
         'mini_app_url' => $defaultMiniAppUrl,
         'support_phone' => '0992098459',
+        'extension_phone' => '0115444437',
+        'extension_short' => '34437',
         'telegram_channel' => 'https://t.me/ECAKB',
         'maintenance_mode' => 'false',
         'auto_respond' => 'true',
@@ -170,10 +172,9 @@ if (strpos($miniAppUrl, 'http://') === 0) {
 }
 define('MINI_APP_URL', $miniAppUrl);
 
-// Sync native Telegram Bot Menu Button
-syncBotMenuButton(MINI_APP_URL);
-
 define('SUPPORT_PHONE', $settings['support_phone']);
+define('EXTENSION_PHONE', $settings['extension_phone'] ?? '0115444437');
+define('EXTENSION_SHORT', $settings['extension_short'] ?? '34437');
 define('TELEGRAM_CHANNEL', $settings['telegram_channel']);
 define('ADMIN_CHAT_ID', $settings['admin_chat_id']);
 define('MAINTENANCE_MODE', filter_var($settings['maintenance_mode'], FILTER_VALIDATE_BOOLEAN));
@@ -216,8 +217,8 @@ function apiRequest($method, $params) {
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_SSL_VERIFYPEER => false,
-            CURLOPT_TIMEOUT => 20,
-            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 6,
+            CURLOPT_CONNECTTIMEOUT => 3,
             CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
             CURLOPT_ENCODING => 'gzip, deflate'
         ]);
@@ -282,6 +283,14 @@ function sendMessage($chatId, $text, $keyboard = null) {
  * Ensure tables exist and have all required columns.
  */
 function ensureBotTablesExist() {
+    static $checked = false;
+    if ($checked) return;
+    $flagFile = __DIR__ . '/.bot_tables_ok';
+    if (file_exists($flagFile)) {
+        $checked = true;
+        return;
+    }
+
     try {
         db()->exec("CREATE TABLE IF NOT EXISTS customer_states (
             chat_id BIGINT PRIMARY KEY, 
@@ -419,6 +428,8 @@ function ensureBotTablesExist() {
     } catch (Exception $e) {
         error_log("Failed to check/add columns: " . $e->getMessage());
     }
+    @file_put_contents($flagFile, '1');
+    $checked = true;
 }
 
 function saveTelegramUser($user) {
@@ -641,6 +652,15 @@ function saveServiceFeedback($chatId, $data) {
         $clientName  = $recentOrder['client_name'] ?? (trim(($tgUser['first_name'] ?? '') . ' ' . ($tgUser['last_name'] ?? '')) ?: 'Valued Customer');
         $phoneNumber = $recentOrder['phone_number'] ?? ($tgUser['phone_number'] ?? '');
         
+        if (!empty($orderNumber)) {
+            $checkStmt = db()->prepare("SELECT id FROM feedback WHERE order_number = ? LIMIT 1");
+            $checkStmt->execute([$orderNumber]);
+            if ($checkStmt->fetch()) {
+                sendMessage($chatId, "⚠️ You have already submitted feedback for Order #" . $orderNumber . ". Thank you!");
+                return;
+            }
+        }
+
         $stmt = db()->prepare("
             INSERT INTO feedback (id, order_number, chat_id, phone_number, client_name, branch_id, service_rating, product_rating, delivery_rating, written_feedback, created_at)
             VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, NOW())
@@ -1739,7 +1759,11 @@ function showHelp($chatId) {
                    "/help - Show this help\n\n";
     }
     
-    $message .= "<b>Need Help?</b>\nPhone: " . SUPPORT_PHONE . "\nTelegram: @ECAKB";
+    $message .= "<b>Need Help? Contact Kaldis ECA Support:</b>\n" .
+                "📞 Mobile: " . SUPPORT_PHONE . "\n" .
+                "☎ Extension Phone: " . EXTENSION_PHONE . "\n" .
+                "🏢 Extension Short No: " . EXTENSION_SHORT . "\n" .
+                "💬 Telegram: @ECAKB";
     
     $keyboard = [
         'inline_keyboard' => [

@@ -33,6 +33,11 @@ define('DB_USER', getenv('DB_USER') ?: 'kaldisbp_order');
 define('DB_PASS', getenv('DB_PASS') ?: '@IT2026!');
 define('DB_CHARSET', 'utf8mb4');
 
+// Extension & Support Phone Configuration
+define('DEFAULT_SUPPORT_PHONE', '0992098459');
+define('DEFAULT_EXTENSION_PHONE', '0115444437');
+define('DEFAULT_EXTENSION_SHORT', '34437');
+
 // Production fallback credentials (for cPanel deployment)
 define('PROD_DB_NAME', 'kaldisbp_ordering');
 define('PROD_DB_USER', 'kaldisbp_order');
@@ -122,6 +127,7 @@ class Database {
                     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                     PDO::ATTR_EMULATE_PREPARES => false,
                     PDO::ATTR_PERSISTENT => false,
+                    PDO::ATTR_TIMEOUT => 2, // Fast timeout to prevent Cloudflare 522 connection timeouts
                 ];
                 $this->pdo = new PDO($dsn, $cfg['user'], $cfg['pass'], $options);
                 return;

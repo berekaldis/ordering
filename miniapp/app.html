@@ -1857,7 +1857,18 @@ function rSuccess(){
     h+='</div>';
 
     // SUPPORT CONTACT BOX
-    h+='<div style="width:100%;max-width:320px;background:var(--p50);border:1px solid var(--p100);border-radius:14px;padding:12px;margin-bottom:12px"><p style="font-size:11px;font-weight:700;color:var(--pri);margin-bottom:8px;text-align:center">'+t('help')+'</p><div style="display:flex;gap:8px"><a href="tel:0992098459" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:11px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:11px;font-weight:700;text-decoration:none;box-shadow:0 3px 10px rgba(5,150,105,0.2)">📞 '+t('call')+'</a><a href="https://t.me/ECAKB" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;border-radius:11px;background:linear-gradient(135deg,#0284C7,#0369A1);color:#fff;font-size:11px;font-weight:700;text-decoration:none;box-shadow:0 3px 10px rgba(2,132,199,0.2)">💬 '+t('tg')+'</a></div></div>';
+    h+='<div style="width:100%;max-width:320px;background:var(--p50);border:1px solid var(--p100);border-radius:14px;padding:12px;margin-bottom:12px">';
+    h+='<p style="font-size:11px;font-weight:700;color:var(--pri);margin-bottom:8px;text-align:center">'+t('help')+'</p>';
+    h+='<div style="display:flex;flex-direction:column;gap:6px">';
+    h+='<div style="display:flex;gap:6px">';
+    h+='<a href="tel:0992098459" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:10px;background:linear-gradient(135deg,#059669,#047857);color:#fff;font-size:10px;font-weight:700;text-decoration:none">📞 Mobile: 0992098459</a>';
+    h+='<a href="tel:0115444437" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:10px;background:linear-gradient(135deg,#B45309,#D97706);color:#fff;font-size:10px;font-weight:700;text-decoration:none">☎ Ext: 0115444437</a>';
+    h+='</div>';
+    h+='<div style="display:flex;gap:6px">';
+    h+='<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:10px;background:#FFF;border:1px solid var(--bd);color:var(--pri);font-size:10px;font-weight:800">🏢 Ext Short: 34437</div>';
+    h+='<a href="https://t.me/ECAKB" target="_blank" style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:8px;border-radius:10px;background:linear-gradient(135deg,#0284C7,#0369A1);color:#fff;font-size:10px;font-weight:700;text-decoration:none">💬 Telegram</a>';
+    h+='</div>';
+    h+='</div></div>';
     h+='</div>';
     m.innerHTML=h;
 }
